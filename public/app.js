@@ -332,7 +332,9 @@ async function viewProductBatches(productId, productTitle) {
     }
 }
 
+function populateFormProductDropdowns() {
     // 1. Stock In Product Combobox
+
     setupSearchableCombobox(
         'stockInProductInput',
         'stockInProduct',
