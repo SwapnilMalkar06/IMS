@@ -32,11 +32,43 @@ function getAuthHeaders() {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 OmniStock IMS Application Initializing...');
     checkLoginSession();
+    initTableActionListeners();
     await loadInitialData();
     updateRolePermissionsUI();
     loadDashboardStats();
     loadProducts();
 });
+
+function initTableActionListeners() {
+    const pTableBody = document.getElementById('productsTableBody');
+    if (pTableBody) {
+        pTableBody.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.action-edit-btn');
+            if (editBtn) {
+                console.log('✏️ Edit clicked for ID:', editBtn.dataset.id);
+                openEditProductModal(editBtn.dataset.id);
+                return;
+            }
+
+            const deleteBtn = e.target.closest('.action-delete-btn');
+            if (deleteBtn) {
+                console.log('🗑️ Delete clicked for ID:', deleteBtn.dataset.id);
+                handleDeleteProduct(deleteBtn.dataset.id);
+                return;
+            }
+
+            const batchBtn = e.target.closest('.action-batches-btn');
+            if (batchBtn) {
+                console.log('🔍 Batches clicked for ID:', batchBtn.dataset.id);
+                const id = batchBtn.dataset.id;
+                const p = state.products.find(item => item.id == id);
+                if (p) viewProductBatches(p.id, p.title);
+                return;
+            }
+        });
+    }
+}
+
 
 // ====================================================================
 // AUTHENTICATION & LOGIN LOGIC
