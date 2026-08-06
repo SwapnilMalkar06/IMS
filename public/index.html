@@ -404,14 +404,27 @@
                 </div>
 
                 <div class="filter-bar">
-                    <select id="txnFilterType" class="custom-select" onchange="loadTransactions()">
-                        <option value="ALL">All Transaction Types</option>
-                        <option value="STOCK_IN">📥 Stock In Only</option>
-                        <option value="SALE">🛒 Direct Sales</option>
-                        <option value="INTERNAL_USE">🏢 Internal Usage</option>
-                        <option value="DAMAGE_WRITE_OFF">⚠️ Damaged / Expired</option>
-                    </select>
+                    <div style="display: flex; gap: 12px; flex: 1; flex-wrap: wrap;">
+                        <select id="txnFilterType" class="custom-select" onchange="loadTransactions()" style="width: 220px;">
+                            <option value="ALL">🌐 All Transaction Types</option>
+                            <option value="STOCK_IN">📥 Stock In (Receiving)</option>
+                            <option value="SALE">🛒 Direct Sales</option>
+                            <option value="INTERNAL_USE">🏢 Internal Usage</option>
+                            <option value="DAMAGE_WRITE_OFF">⚠️ Damaged / Expired</option>
+                            <option value="VENDOR_RETURN">↩️ Vendor Return</option>
+                        </select>
+
+                        <select id="txnFilterPeriod" class="custom-select" onchange="loadTransactions()" style="width: 180px;">
+                            <option value="ALL">📅 All Time</option>
+                            <option value="TODAY" selected>☀️ Today</option>
+                            <option value="THIS_MONTH">📆 This Month</option>
+                            <option value="THIS_YEAR">🏛️ This Year</option>
+                        </select>
+
+                        <input type="text" id="txnSearchInput" class="form-control" placeholder="🔍 Search title, SKU, batch #, txn #, customer..." oninput="loadTransactions()" style="flex: 1; min-width: 240px;">
+                    </div>
                 </div>
+
 
                 <div class="panel">
                     <div class="table-responsive">

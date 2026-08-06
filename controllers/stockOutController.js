@@ -3,7 +3,7 @@
 // ====================================================================
 
 const db = require('../config/db');
-const { mockProducts, mockBatches, getBatchesForProduct, getProductTotalStock } = require('../config/store');
+const { mockProducts, mockBatches, getBatchesForProduct, getProductTotalStock, addMockTransaction } = require('../config/store');
 
 async function processStockOut(req, res) {
     let connection;
@@ -74,7 +74,7 @@ async function processStockOut(req, res) {
                 (txn_number, txn_type, product_id, batch_id, quantity, unit_price, discount_amount, tax_amount, total_amount, customer_name, dept_name, invoice_ref, remarks, user_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                txnNumber, type, product_id, batch_id, qty, price, disc, tax, total,
+                txnNumber, type, product_id, batch_id, -qty, price, disc, tax, total,
                 customer_name || null, dept_name || null, invoice_ref || `BILL-${Date.now().toString().slice(-6)}`,
                 remarks || `Stock Out (${type})`, user
             ]);
@@ -119,9 +119,34 @@ async function processStockOut(req, res) {
                 targetProd.total_stock = getProductTotalStock(targetProd.id);
             }
 
+            const type = txn_type || 'SALE';
+            const price = unit_price !== undefined ? parseFloat(unit_price) : parseFloat(targetBatch.selling_price);
+            const disc = discount_amount ? parseFloat(discount_amount) : 0;
+            const tax = tax_amount ? parseFloat(tax_amount) : 0;
+            const total = parseFloat(((qty * price) - disc + tax).toFixed(2));
+            const txnNo = `TXN-OUT-${Date.now()}`;
+
+            addMockTransaction({
+                txn_number: txnNo,
+                txn_type: type,
+                product_id: targetProd ? targetProd.id : product_id,
+                product_title: targetProd ? targetProd.title : 'Product Item',
+                product_sku: targetProd ? targetProd.sku : 'SKU-ITEM',
+                batch_number: targetBatch.batch_number,
+                quantity: -qty,
+                unit_price: price,
+                discount_amount: disc,
+                tax_amount: tax,
+                total_amount: total,
+                customer_name: customer_name || 'Walk-in Customer',
+                dept_name: dept_name || null,
+                invoice_ref: invoice_ref || `BILL-${Date.now().toString().slice(-6)}`,
+                user_name: 'Inventory Clerk'
+            });
+
             return res.status(201).json({
                 message: 'Stock Out processed successfully!',
-                txnNumber: `TXN-OUT-${Date.now()}`,
+                txnNumber: txnNo,
                 remainingQty: targetBatch.available_qty
             });
         }

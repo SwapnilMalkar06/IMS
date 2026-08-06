@@ -3,7 +3,7 @@
 // ====================================================================
 
 const db = require('../config/db');
-const { mockProducts, mockBatches, getProductTotalStock } = require('../config/store');
+const { mockProducts, mockBatches, getProductTotalStock, addMockTransaction } = require('../config/store');
 
 async function processStockIn(req, res) {
     let connection;
@@ -47,12 +47,10 @@ async function processStockIn(req, res) {
 
             let targetProductId = product_id;
 
-            // 1. If product_id is not provided or invalid, find or auto-create product in master catalog
             if (!targetProductId) {
                 const titleToUse = product_title || 'New Received Item';
                 const skuToUse = sku || `SKU-${Date.now().toString().slice(-6)}`;
 
-                // Check if SKU or title already exists in products table
                 const [existingProd] = await connection.query(`
                     SELECT id FROM products WHERE sku = ? OR title = ?
                 `, [skuToUse, titleToUse]);
@@ -60,7 +58,6 @@ async function processStockIn(req, res) {
                 if (existingProd.length > 0) {
                     targetProductId = existingProd[0].id;
                 } else {
-                    // Create new Product in Catalog
                     const [newProdResult] = await connection.query(`
                         INSERT INTO products 
                         (sku, barcode, title, category_id, unit_of_measure, min_reorder_level, domain_preset)
@@ -77,7 +74,6 @@ async function processStockIn(req, res) {
                 }
             }
 
-            // 2. Check if batch already exists for this target product
             const [existingBatch] = await connection.query(`
                 SELECT id, available_qty FROM product_batches 
                 WHERE product_id = ? AND batch_number = ?
@@ -112,7 +108,6 @@ async function processStockIn(req, res) {
                 batchId = newBatch.insertId;
             }
 
-            // 3. Record Transaction Log
             const txnNumber = `TXN-IN-${Date.now()}`;
             const totalCost = parseFloat((qty * pPrice).toFixed(2));
 
@@ -146,7 +141,6 @@ async function processStockIn(req, res) {
                 try { await connection.rollback(); } catch (e) {}
             }
 
-            // Fallback for Demo Mode (creates/updates in central mock state)
             let targetProd = mockProducts.find(p => p.id == product_id || p.title.toLowerCase() === (product_title || '').toLowerCase());
             if (!targetProd) {
                 targetProd = {
@@ -163,7 +157,6 @@ async function processStockIn(req, res) {
                 mockProducts.unshift(targetProd);
             }
 
-            // Record batch in central mockBatches
             if (!mockBatches[targetProd.id]) mockBatches[targetProd.id] = [];
 
             const existingMockBatch = mockBatches[targetProd.id].find(b => b.batch_number === batchNo);
@@ -187,10 +180,27 @@ async function processStockIn(req, res) {
 
             targetProd.total_stock = getProductTotalStock(targetProd.id);
 
+            // Record transaction in central mock store
+            const txnNo = `TXN-IN-${Date.now()}`;
+            addMockTransaction({
+                txn_number: txnNo,
+                txn_type: 'STOCK_IN',
+                product_id: targetProd.id,
+                product_title: targetProd.title,
+                product_sku: targetProd.sku,
+                batch_number: batchNo,
+                quantity: qty,
+                unit_price: pPrice,
+                total_amount: parseFloat((qty * pPrice).toFixed(2)),
+                supplier_name: 'PharmaSupply Co.',
+                user_name: 'Super Admin',
+                invoice_ref: invoice_ref || 'RECEIPT-IN'
+            });
+
             return res.status(201).json({
                 message: 'Stock In entry recorded successfully!',
                 productId: targetProd.id,
-                txnNumber: `TXN-IN-${Date.now()}`
+                txnNumber: txnNo
             });
         }
     } catch (err) {

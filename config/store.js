@@ -19,6 +19,37 @@ const mockBatches = {
     ]
 };
 
+const mockTransactions = [
+    { 
+        id: 1,
+        txn_date: new Date().toISOString(), 
+        txn_number: 'TXN-IN-20260801-01', 
+        txn_type: 'STOCK_IN', 
+        product_title: 'Paracetamol 500mg Tablets (Box of 100)', 
+        product_sku: 'PHARM-5001', 
+        batch_number: 'BATCH-PHARM-2026A', 
+        quantity: 100, 
+        unit_price: 10.00, 
+        total_amount: 1000.00, 
+        supplier_name: 'PharmaSupply Co.', 
+        user_name: 'Super Admin' 
+    },
+    { 
+        id: 2,
+        txn_date: new Date().toISOString(), 
+        txn_number: 'TXN-OUT-20260802-01', 
+        txn_type: 'SALE', 
+        product_title: 'Paracetamol 500mg Tablets (Box of 100)', 
+        product_sku: 'PHARM-5001', 
+        batch_number: 'BATCH-PHARM-2026A', 
+        quantity: -3, 
+        unit_price: 15.00, 
+        total_amount: 45.00, 
+        customer_name: 'Walk-in Customer', 
+        user_name: 'Inventory Clerk' 
+    }
+];
+
 function getBatchesForProduct(productId) {
     if (!productId) return [];
     return mockBatches[productId] || mockBatches[String(productId)] || mockBatches[Number(productId)] || [];
@@ -35,4 +66,20 @@ function recalculateAllStock() {
     });
 }
 
-module.exports = { mockProducts, mockBatches, getBatchesForProduct, getProductTotalStock, recalculateAllStock };
+function addMockTransaction(txn) {
+    mockTransactions.unshift({
+        id: Date.now(),
+        txn_date: new Date().toISOString(),
+        ...txn
+    });
+}
+
+module.exports = { 
+    mockProducts, 
+    mockBatches, 
+    mockTransactions, 
+    getBatchesForProduct, 
+    getProductTotalStock, 
+    recalculateAllStock,
+    addMockTransaction 
+};

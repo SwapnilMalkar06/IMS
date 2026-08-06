@@ -1017,21 +1017,24 @@ async function handleStockOutSubmit(e) {
 // ====================================================================
 async function loadTransactions() {
     const type = document.getElementById('txnFilterType')?.value || 'ALL';
+    const period = document.getElementById('txnFilterPeriod')?.value || 'ALL';
+    const search = document.getElementById('txnSearchInput')?.value || '';
     
     try {
-        const res = await fetch(`${API_BASE}/transactions?type=${type}`, { headers: getAuthHeaders() });
+        let url = `${API_BASE}/transactions?type=${type}&period=${period}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        const res = await fetch(url, { headers: getAuthHeaders() });
         if (res.ok) {
             state.transactions = await res.json();
         }
     } catch (err) {
-        state.transactions = [
-            { txn_date: new Date().toISOString(), txn_number: 'TXN-IN-20260801-01', txn_type: 'STOCK_IN', product_title: 'Paracetamol 500mg', product_sku: 'PHARM-5001', batch_number: 'BATCH-PHARM-2026A', quantity: 100, unit_price: 10.00, total_amount: 1000.00, supplier_name: 'PharmaSupply Co.', user_name: 'Super Admin' },
-            { txn_date: new Date().toISOString(), txn_number: 'TXN-OUT-20260802-01', txn_type: 'SALE', product_title: 'Paracetamol 500mg', product_sku: 'PHARM-5001', batch_number: 'BATCH-PHARM-2026A', quantity: -2, unit_price: 12.00, total_amount: 24.00, customer_name: 'Walk-in Customer', user_name: 'Inventory Clerk' }
-        ];
+        console.warn('Fetching local transactions fallback');
     }
 
     renderTransactionsTables();
 }
+
 
 
 function renderTransactionsTables() {
