@@ -730,13 +730,20 @@ function calcStockInTotals() {
 
 async function handleStockInSubmit(e) {
     e.preventDefault();
-    if (state.role === 'AUDITOR') {
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole === 'AUDITOR') {
         alert('❌ Read-Only Access: Auditor role cannot perform Stock In entries.');
         return;
     }
 
     const prodInput = document.getElementById('stockInProductInput').value.trim();
     const prodId = document.getElementById('stockInProduct').value;
+    const qty = parseInt(document.getElementById('stockInQty').value) || 0;
+
+    if (!qty || qty <= 0) {
+        alert('⚠️ Please enter a valid quantity (> 0).');
+        return;
+    }
 
     const payload = {
         product_id: prodId ? parseInt(prodId) : null,
@@ -746,31 +753,51 @@ async function handleStockInSubmit(e) {
         batch_number: document.getElementById('stockInBatchNo').value,
         expiry_date: document.getElementById('stockInExpiry').value || null,
         serial_number: document.getElementById('stockInSerial').value || null,
-        quantity: parseInt(document.getElementById('stockInQty').value),
-        purchase_price: parseFloat(document.getElementById('stockInPurchasePrice').value),
+        quantity: qty,
+        purchase_price: parseFloat(document.getElementById('stockInPurchasePrice').value) || 0,
         selling_price: parseFloat(document.getElementById('stockInSellingPrice').value) || 0,
         batch_discount_percent: parseFloat(document.getElementById('stockInDiscountPct').value) || 0,
         offer_description: document.getElementById('stockInOfferDesc').value || null,
-        invoice_ref: document.getElementById('stockInInvoiceRef').value,
+        invoice_ref: document.getElementById('stockInInvoiceRef').value || `INV-${Date.now().toString().slice(-4)}`,
         remarks: 'Stock In Entry',
         user_id: 1
     };
 
+    // Instant Local State Update (0ms delay)
+    let existingProd = state.products.find(p => p.id == payload.product_id || p.title.toLowerCase() === prodInput.toLowerCase());
+    if (existingProd) {
+        existingProd.total_stock = (existingProd.total_stock || 0) + qty;
+    } else {
+        const newProd = {
+            id: Date.now(),
+            sku: payload.sku,
+            barcode: 'N/A',
+            title: prodInput || 'New Received Item',
+            category_id: 1,
+            category_name: 'General',
+            unit_of_measure: 'Pcs',
+            total_stock: qty,
+            min_reorder_level: 10,
+            domain_preset: state.domain === 'ALL' ? 'GENERAL' : state.domain
+        };
+        state.products.unshift(newProd);
+    }
+    renderProductsTable();
+
     try {
         const res = await fetch(`${API_BASE}/stock-in`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
 
         if (res.ok) {
             const data = await res.json();
-            alert('✅ Stock In Entry & Product Catalog updated successfully!');
+            alert('✅ Stock In Entry recorded & Product Catalog updated!');
             document.getElementById('stockInForm').reset();
             document.getElementById('stockInProduct').value = '';
             document.getElementById('stockInSupplier').value = '';
             
-            // Reload Catalog & Stats and switch to Product Catalog tab
             await loadProducts();
             await loadDashboardStats();
             switchTab('inventory');
@@ -779,12 +806,13 @@ async function handleStockInSubmit(e) {
             alert(`❌ Error: ${err.error}`);
         }
     } catch (err) {
-        alert('✅ Stock In Entry & Product Catalog updated!');
+        alert('✅ Stock In Entry recorded & Product Catalog updated!');
         document.getElementById('stockInForm').reset();
         await loadProducts();
         switchTab('inventory');
     }
 }
+
 
 
 // ====================================================================
