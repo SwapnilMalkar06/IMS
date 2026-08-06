@@ -976,6 +976,16 @@ async function handleStockOutSubmit(e) {
         user_id: 1
     };
 
+    // Instant local stock deduction (0ms UI state response)
+    const targetProd = state.products.find(p => p.id == payload.product_id);
+    if (targetProd) {
+        targetProd.total_stock = Math.max(0, (parseInt(targetProd.total_stock) || 0) - qty);
+    }
+    if (batch) {
+        batch.available_qty = Math.max(0, (parseInt(batch.available_qty) || 0) - qty);
+    }
+    renderProductsTable();
+
     try {
         const res = await fetch(`${API_BASE}/stock-out`, {
             method: 'POST',
@@ -986,8 +996,8 @@ async function handleStockOutSubmit(e) {
         if (res.ok) {
             alert('✅ Stock Out Dispatch processed successfully!');
             document.getElementById('stockOutForm').reset();
-            loadProducts();
-            loadDashboardStats();
+            await loadProducts();
+            await loadDashboardStats();
             switchTab('transactions');
         } else {
             const err = await res.json();
@@ -996,9 +1006,11 @@ async function handleStockOutSubmit(e) {
     } catch (err) {
         alert('✅ Stock Out processed!');
         document.getElementById('stockOutForm').reset();
+        await loadProducts();
         switchTab('transactions');
     }
 }
+
 
 // ====================================================================
 // 7. TRANSACTIONS LEDGER LOGIC
