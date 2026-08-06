@@ -9,6 +9,7 @@ const API_BASE = 'http://localhost:3000/api';
 let state = {
     domain: 'ALL',
     role: 'CLERK',
+    currentUser: null,
     products: [],
     categories: [],
     suppliers: [],
@@ -21,11 +22,116 @@ let state = {
 // INITIALIZATION ON DOM LOADED
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 OmniStock IMS Application Initializing...');
+    checkLoginSession();
     await loadInitialData();
     updateRolePermissionsUI();
     loadDashboardStats();
     loadProducts();
 });
+
+// ====================================================================
+// AUTHENTICATION & LOGIN LOGIC
+// ====================================================================
+function checkLoginSession() {
+    const savedUser = localStorage.getItem('omni_user');
+    const overlay = document.getElementById('loginOverlay');
+    
+    if (savedUser) {
+        try {
+            state.currentUser = JSON.parse(savedUser);
+            state.role = state.currentUser.role || 'CLERK';
+            if (overlay) overlay.classList.remove('active');
+            updateNavbarUserProfile();
+        } catch (e) {
+            localStorage.removeItem('omni_user');
+            if (overlay) overlay.classList.add('active');
+        }
+    } else {
+        if (overlay) overlay.classList.add('active');
+    }
+}
+
+function updateNavbarUserProfile() {
+    const nameEl = document.getElementById('userNameText');
+    const badgeEl = document.getElementById('userRoleBadge');
+    
+    if (state.currentUser) {
+        if (nameEl) nameEl.innerText = state.currentUser.name;
+        if (badgeEl) {
+            badgeEl.innerText = state.currentUser.role;
+            const badgeClassMap = {
+                'ADMIN': 'badge badge-danger',
+                'MANAGER': 'badge badge-warning',
+                'CLERK': 'badge badge-info',
+                'AUDITOR': 'badge badge-purple'
+            };
+            badgeEl.className = badgeClassMap[state.currentUser.role] || 'badge badge-info';
+        }
+    }
+}
+
+async function handleLoginSubmit(e) {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    try {
+        const res = await fetch(`${API_BASE}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.user) {
+            state.currentUser = data.user;
+            state.role = data.user.role;
+            localStorage.setItem('omni_user', JSON.stringify(data.user));
+            
+            document.getElementById('loginOverlay')?.classList.remove('active');
+            updateNavbarUserProfile();
+            updateRolePermissionsUI();
+            alert(`🎉 Welcome back, ${data.user.name}! (Role: ${data.user.role})`);
+            loadProducts();
+            loadDashboardStats();
+        } else {
+            alert(`❌ Login Failed: ${data.error || 'Invalid credentials'}`);
+        }
+    } catch (err) {
+        // Fallback Demo Login
+        const demoUsers = {
+            'admin@inventory.com': { id: 1, name: 'Super Admin', email: 'admin@inventory.com', role: 'ADMIN' },
+            'manager@inventory.com': { id: 2, name: 'Store Manager', email: 'manager@inventory.com', role: 'MANAGER' },
+            'clerk@inventory.com': { id: 3, name: 'Inventory Clerk', email: 'clerk@inventory.com', role: 'CLERK' },
+            'auditor@inventory.com': { id: 4, name: 'Auditor Viewer', email: 'auditor@inventory.com', role: 'AUDITOR' }
+        };
+
+        const user = demoUsers[email.toLowerCase()] || { id: Date.now(), name: email.split('@')[0], email, role: 'CLERK' };
+        state.currentUser = user;
+        state.role = user.role;
+        localStorage.setItem('omni_user', JSON.stringify(user));
+        
+        document.getElementById('loginOverlay')?.classList.remove('active');
+        updateNavbarUserProfile();
+        updateRolePermissionsUI();
+        alert(`🎉 Logged in as ${user.name}!`);
+        loadProducts();
+    }
+}
+
+function quickFillLogin(email) {
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('loginPassword').value = 'admin123';
+    handleLoginSubmit(new Event('submit'));
+}
+
+function handleLogout() {
+    localStorage.removeItem('omni_user');
+    state.currentUser = null;
+    document.getElementById('loginOverlay')?.classList.add('active');
+    console.log('🚪 Logged out');
+}
+
 
 // ====================================================================
 // 1. INITIAL DATA FETCHING (REST API + MOCK FALLBACK)

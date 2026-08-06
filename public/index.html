@@ -11,6 +11,42 @@
 </head>
 <body>
 
+    <!-- LOGIN OVERLAY SCREEN -->
+    <div class="login-overlay active" id="loginOverlay">
+
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">📦</div>
+                <h2>OmniStock IMS Login</h2>
+                <p class="text-muted">Sign in to manage inventory & dispatches</p>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+                <div class="form-group mt-3">
+                    <label>Email Address *</label>
+                    <input type="email" id="loginEmail" class="form-control" placeholder="admin@inventory.com" required>
+                </div>
+                <div class="form-group mt-3">
+                    <label>Password *</label>
+                    <input type="password" id="loginPassword" class="form-control" value="admin123" required>
+                    <small class="text-muted" style="font-size: 11px;">Default password for all users: <strong>admin123</strong></small>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg mt-4">🔐 Sign In to Inventory System</button>
+            </form>
+
+            <div class="demo-accounts-box mt-4">
+                <span class="demo-title">⚡ Quick Demo Login Accounts:</span>
+                <div class="demo-pills">
+                    <button type="button" class="demo-btn" onclick="quickFillLogin('admin@inventory.com')">🛡️ Super Admin</button>
+                    <button type="button" class="demo-btn" onclick="quickFillLogin('manager@inventory.com')">👔 Store Manager</button>
+                    <button type="button" class="demo-btn" onclick="quickFillLogin('clerk@inventory.com')">📦 Inventory Clerk</button>
+                    <button type="button" class="demo-btn" onclick="quickFillLogin('auditor@inventory.com')">👁️ Auditor</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- TOP NAVIGATION BAR -->
     <header class="top-nav">
         <div class="brand">
@@ -35,15 +71,14 @@
                 </select>
             </div>
 
-            <!-- Role Switcher -->
-            <div class="selector-group">
-                <label for="userRole">👤 Logged Role:</label>
-                <select id="userRole" class="custom-select role-select" onchange="onRoleChange()">
-                    <option value="ADMIN">🛡️ Super Admin (Full Control)</option>
-                    <option value="MANAGER">👔 Store Manager (Operations)</option>
-                    <option value="CLERK" selected>📦 Inventory Clerk (Stock In/Out)</option>
-                    <option value="AUDITOR">👁️ Auditor (Read-Only)</option>
-                </select>
+            <!-- Logged User Profile & Role -->
+            <div class="user-profile-pill" id="userProfilePill">
+                <span class="user-avatar">👤</span>
+                <div class="user-info">
+                    <strong id="userNameText">Inventory Clerk</strong>
+                    <small id="userRoleBadge" class="badge badge-info">CLERK</small>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="handleLogout()" title="Sign Out">🚪 Logout</button>
             </div>
 
             <!-- Connection Status -->
@@ -52,6 +87,7 @@
             </div>
         </div>
     </header>
+
 
     <div class="main-layout">
         <!-- SIDEBAR MENU -->

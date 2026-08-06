@@ -16,6 +16,39 @@ const db = require('../config/db');
 // Health Check
 router.get('/health', (req, res) => res.json({ status: 'online', version: '1.0.0' }));
 
+// Auth Route
+router.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    if (password !== 'admin123') {
+        return res.status(401).json({ error: 'Invalid password. Default password is admin123' });
+    }
+
+    const demoUsers = {
+        'admin@inventory.com': { id: 1, name: 'Super Admin', email: 'admin@inventory.com', role: 'ADMIN' },
+        'manager@inventory.com': { id: 2, name: 'Store Manager', email: 'manager@inventory.com', role: 'MANAGER' },
+        'clerk@inventory.com': { id: 3, name: 'Inventory Clerk', email: 'clerk@inventory.com', role: 'CLERK' },
+        'auditor@inventory.com': { id: 4, name: 'Auditor Viewer', email: 'auditor@inventory.com', role: 'AUDITOR' }
+    };
+
+    const user = demoUsers[email.toLowerCase()] || {
+        id: Date.now(),
+        name: email.split('@')[0],
+        email: email,
+        role: 'CLERK'
+    };
+
+    return res.json({
+        message: 'Login successful!',
+        user,
+        token: `token-${Date.now()}`
+    });
+});
+
+
 // Dashboard Stats (Read Permission)
 router.get('/dashboard/stats', requirePermission('READ'), getDashboardStats);
 
