@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Business Inventory Management System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="top-nav">
+        <div class="brand">
+            <div class="logo-icon">📦</div>
+            <div>
+                <h1 class="brand-title">OmniStock IMS</h1>
+                <span class="brand-subtitle">Multi-Business Inventory Management</span>
+            </div>
+        </div>
+
+        <div class="control-bars">
+            <!-- Domain Preset Selector -->
+            <div class="selector-group">
+                <label for="domainPreset">🏢 Business Domain:</label>
+                <select id="domainPreset" class="custom-select" onchange="onDomainChange()">
+                    <option value="ALL">🌐 All Domains (General)</option>
+                    <option value="PHARMACY">💊 Pharmacy & Healthcare</option>
+                    <option value="GROCERY">🥦 Grocery & Fresh Produce</option>
+                    <option value="ELECTRONICS">🔌 Electronics & Appliances</option>
+                    <option value="APPAREL">👕 Apparel & Fashion</option>
+                    <option value="HARDWARE">🔧 Hardware & Supplies</option>
+                </select>
+            </div>
+
+            <!-- Role Switcher -->
+            <div class="selector-group">
+                <label for="userRole">👤 Logged Role:</label>
+                <select id="userRole" class="custom-select role-select" onchange="onRoleChange()">
+                    <option value="ADMIN">🛡️ Super Admin (Full Control)</option>
+                    <option value="MANAGER">👔 Store Manager (Operations)</option>
+                    <option value="CLERK" selected>📦 Inventory Clerk (Stock In/Out)</option>
+                    <option value="AUDITOR">👁️ Auditor (Read-Only)</option>
+                </select>
+            </div>
+
+            <!-- Connection Status -->
+            <div class="status-pill" id="systemStatus">
+                <span class="status-dot green"></span> MySQL 8.0 Live
+            </div>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <!-- SIDEBAR MENU -->
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" id="btn-tab-dashboard" onclick="switchTab('dashboard')">
+                    <span class="nav-icon">📊</span> Dashboard
+                </button>
+                <button class="nav-btn" id="btn-tab-inventory" onclick="switchTab('inventory')">
+                    <span class="nav-icon">📦</span> Product Catalog
+                </button>
+                <button class="nav-btn clerk-access manager-access admin-access" id="btn-tab-stock-in" onclick="switchTab('stock-in')">
+                    <span class="nav-icon">📥</span> Stock In (Receive)
+                </button>
+                <button class="nav-btn clerk-access manager-access admin-access" id="btn-tab-stock-out" onclick="switchTab('stock-out')">
+                    <span class="nav-icon">📤</span> Stock Out (Dispatch/Sale)
+                </button>
+                <button class="nav-btn" id="btn-tab-transactions" onclick="switchTab('transactions')">
+                    <span class="nav-icon">📋</span> Daily Audit Ledger
+                </button>
+                <button class="nav-btn" id="btn-tab-reports" onclick="switchTab('reports')">
+                    <span class="nav-icon">📈</span> Reports & Analytics
+                </button>
+            </nav>
+
+            <div class="role-badge-box">
+                <span class="role-title">Current Role Permissions</span>
+                <div class="role-desc" id="roleDescText">
+                    Allowed: Stock In, Stock Out, View Catalog & Daily Ledger.
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="content-area">
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content active">
+                <div class="page-header">
+                    <h2>Inventory Overview & Key Metrics</h2>
+                    <span class="text-muted">Real-time daily balance tracking</span>
+                </div>
+
+                <!-- KPI CARDS GRID -->
+                <div class="kpi-grid">
+                    <div class="kpi-card green-border">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Today's Stock In</span>
+                            <span class="kpi-icon">📥</span>
+                        </div>
+                        <div class="kpi-value" id="kpiStockInVal">₹0.00</div>
+                        <div class="kpi-sub" id="kpiStockInSub">0 entries today</div>
+                    </div>
+
+                    <div class="kpi-card blue-border">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Today's Sales / Stock Out</span>
+                            <span class="kpi-icon">📤</span>
+                        </div>
+                        <div class="kpi-value" id="kpiStockOutVal">₹0.00</div>
+                        <div class="kpi-sub" id="kpiStockOutSub">0 sales recorded</div>
+                    </div>
+
+                    <div class="kpi-card warning-border">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Low Stock Alert</span>
+                            <span class="kpi-icon">⚠️</span>
+                        </div>
+                        <div class="kpi-value" id="kpiLowStockVal">0</div>
+                        <div class="kpi-sub">Items below reorder point</div>
+                    </div>
+
+                    <div class="kpi-card danger-border">
+                        <div class="kpi-header">
+                            <span class="kpi-title">Near Expiry Alert</span>
+                            <span class="kpi-icon">⌛</span>
+                        </div>
+                        <div class="kpi-value" id="kpiNearExpiryVal">0</div>
+                        <div class="kpi-sub">Expiring within 30 days</div>
+                    </div>
+                </div>
+
+                <!-- RECENT TRANSACTIONS PREVIEW TABLE -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Recent Transactions</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="switchTab('transactions')">View Full Audit Ledger →</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Txn ID</th>
+                                    <th>Type</th>
+                                    <th>Product</th>
+                                    <th>Qty</th>
+                                    <th>Total Value</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentTxnBody">
+                                <tr><td colspan="7" class="text-center">Loading transactions...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: PRODUCT CATALOG -->
+            <section id="tab-inventory" class="tab-content">
+                <div class="page-header">
+                    <h2>Product Inventory Directory</h2>
+                    <button class="btn btn-primary manager-access admin-access" onclick="openAddProductModal()">+ Add New Product</button>
+                </div>
+
+                <!-- SEARCH & FILTERS BAR -->
+                <div class="filter-bar">
+                    <input type="text" id="catalogSearch" class="search-input" placeholder="Search by SKU, Title, or Barcode..." onkeyup="loadProducts()">
+                    <select id="catalogCategory" class="custom-select" onchange="loadProducts()">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+
+                <!-- PRODUCTS TABLE -->
+                <div class="panel">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>SKU / Barcode</th>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Total Stock</th>
+                                    <th>Min Threshold</th>
+                                    <th>Domain Preset</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productsTableBody">
+                                <tr><td colspan="7" class="text-center">Loading product directory...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: STOCK IN (RECEIVING) FORM -->
+            <section id="tab-stock-in" class="tab-content">
+                <div class="page-header">
+                    <h2>Stock In - Receive Incoming Inventory</h2>
+                    <span class="text-muted">Record new products from suppliers into stock</span>
+                </div>
+
+                <form id="stockInForm" class="form-grid-card" onsubmit="handleStockInSubmit(event)">
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label>Search & Select Product *</label>
+                            <div class="combobox-wrapper" id="stockInProductWrapper">
+                                <input type="text" id="stockInProductInput" class="form-control combobox-input" placeholder="🔍 Type product title, SKU, or scan barcode..." autocomplete="off" required>
+                                <input type="hidden" id="stockInProduct" required>
+                                <div class="combobox-dropdown" id="stockInProductDropdown"></div>
+                            </div>
+                        </div>
+                        <div class="form-group col-6">
+                            <label>Search & Select Supplier / Vendor *</label>
+                            <div class="combobox-wrapper" id="stockInSupplierWrapper">
+                                <input type="text" id="stockInSupplierInput" class="form-control combobox-input" placeholder="🔍 Type supplier name..." autocomplete="off" required>
+                                <input type="hidden" id="stockInSupplier" required>
+                                <div class="combobox-dropdown" id="stockInSupplierDropdown"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-4">
+                            <label>Batch / Lot Number *</label>
+                            <input type="text" id="stockInBatchNo" class="form-control" placeholder="e.g. BATCH-2026-X" required>
+                        </div>
+                        <div class="form-group col-4 domain-field-pharmacy domain-field-grocery">
+                            <label>Expiry Date (Pharmacy/Food)</label>
+                            <input type="date" id="stockInExpiry" class="form-control">
+                        </div>
+                        <div class="form-group col-4 domain-field-electronics">
+                            <label>Serial / IMEI Number</label>
+                            <input type="text" id="stockInSerial" class="form-control" placeholder="Device Serial #">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-3">
+                            <label>Received Quantity *</label>
+                            <input type="number" id="stockInQty" class="form-control" min="1" required oninput="calcStockInTotals()">
+                        </div>
+                        <div class="form-group col-3">
+                            <label>Purchase Price (Unit Cost) *</label>
+                            <input type="number" step="0.01" id="stockInPurchasePrice" class="form-control" placeholder="0.00" required oninput="calcStockInTotals()">
+                        </div>
+                        <div class="form-group col-3">
+                            <label>Target Selling Price / MRP</label>
+                            <input type="number" step="0.01" id="stockInSellingPrice" class="form-control" placeholder="0.00">
+                        </div>
+                        <div class="form-group col-3">
+                            <label>Batch Discount / Offer %</label>
+                            <input type="number" step="0.01" id="stockInDiscountPct" class="form-control" placeholder="0%">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label>Supplier Invoice / GRN Reference # *</label>
+                            <input type="text" id="stockInInvoiceRef" class="form-control" placeholder="e.g. INV-90122" required>
+                        </div>
+                        <div class="form-group col-6">
+                            <label>Offer Description / Note</label>
+                            <input type="text" id="stockInOfferDesc" class="form-control" placeholder="e.g. 20% Near-Expiry Clearance Offer">
+                        </div>
+                    </div>
+
+                    <div class="form-summary-bar">
+                        <div>
+                            <span>Total Entry Cost: </span>
+                            <strong id="stockInTotalCostText" class="highlight-val">₹0.00</strong>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-lg">📥 Complete Stock In Entry</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- TAB 4: STOCK OUT (DISPATCH / SALES) FORM -->
+            <section id="tab-stock-out" class="tab-content">
+                <div class="page-header">
+                    <h2>Stock Out - Sales, Internal Issue & Write-Offs</h2>
+                    <span class="text-muted">Deduct stock with batch selection and offer calculations</span>
+                </div>
+
+                <form id="stockOutForm" class="form-grid-card" onsubmit="handleStockOutSubmit(event)">
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label>Stock Out Reason / Type *</label>
+                            <select id="stockOutType" class="custom-select" onchange="onStockOutTypeChange()">
+                                <option value="SALE">🛒 Direct Sale to Customer</option>
+                                <option value="INTERNAL_USE">🏢 Internal Department Usage</option>
+                                <option value="DAMAGE_WRITE_OFF">⚠️ Damaged / Expired Removal</option>
+                                <option value="VENDOR_RETURN">↩️ Return to Supplier / Vendor</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-6">
+                            <label>Search & Select Product *</label>
+                            <div class="combobox-wrapper" id="stockOutProductWrapper">
+                                <input type="text" id="stockOutProductInput" class="form-control combobox-input" placeholder="🔍 Type product title, SKU, or scan barcode..." autocomplete="off" required>
+                                <input type="hidden" id="stockOutProduct" required>
+                                <div class="combobox-dropdown" id="stockOutProductDropdown"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BATCH SELECTOR DISPLAY BOX -->
+                    <div class="batch-selection-box" id="batchSelectionBox">
+                        <div class="batch-box-header">
+                            <div>
+                                <strong>Select Batch for Dispatch:</strong>
+                                <span class="badge badge-info" id="selectedBatchName">No batch selected</span>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnOpenBatchModal" onclick="openBatchSelectorModal()">🔍 Pick Batch / View Offers</button>
+                        </div>
+                        <div class="batch-details-grid" id="batchDetailsGrid">
+                            <div class="text-muted">Please select a product first to view available batches and offers.</div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="stockOutBatchId" required>
+
+                    <div class="form-row mt-3">
+                        <div class="form-group col-4">
+                            <label>Outgoing Quantity *</label>
+                            <input type="number" id="stockOutQty" class="form-control" min="1" value="1" required oninput="calcStockOutTotals()">
+                        </div>
+                        <div class="form-group col-4">
+                            <label>Unit Selling Price (₹) *</label>
+                            <input type="number" step="0.01" id="stockOutPrice" class="form-control" placeholder="0.00" required oninput="calcStockOutTotals()">
+                        </div>
+                        <div class="form-group col-4">
+                            <label>Applied Discount (₹)</label>
+                            <input type="number" step="0.01" id="stockOutDiscount" class="form-control" value="0.00" oninput="calcStockOutTotals()">
+                        </div>
+                    </div>
+
+                    <div class="form-row" id="salesCustomerRow">
+                        <div class="form-group col-6">
+                            <label>Customer Name / Contact</label>
+                            <input type="text" id="stockOutCustomer" class="form-control" placeholder="Walk-in Customer">
+                        </div>
+                        <div class="form-group col-6">
+                            <label>Receipt / Bill Reference #</label>
+                            <input type="text" id="stockOutBillRef" class="form-control" placeholder="BILL-AUTO">
+                        </div>
+                    </div>
+
+                    <div class="form-summary-bar">
+                        <div>
+                            <span>Final Total Amount: </span>
+                            <strong id="stockOutTotalBillText" class="highlight-val blue">₹0.00</strong>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg">📤 Process Stock Out Dispatch</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- TAB 5: DAILY AUDIT LEDGER -->
+            <section id="tab-transactions" class="tab-content">
+                <div class="page-header">
+                    <h2>Daily Transaction Audit Ledger</h2>
+                    <button class="btn btn-secondary" onclick="exportTransactionsCSV()">📥 Export CSV</button>
+                </div>
+
+                <div class="filter-bar">
+                    <select id="txnFilterType" class="custom-select" onchange="loadTransactions()">
+                        <option value="ALL">All Transaction Types</option>
+                        <option value="STOCK_IN">📥 Stock In Only</option>
+                        <option value="SALE">🛒 Direct Sales</option>
+                        <option value="INTERNAL_USE">🏢 Internal Usage</option>
+                        <option value="DAMAGE_WRITE_OFF">⚠️ Damaged / Expired</option>
+                    </select>
+                </div>
+
+                <div class="panel">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Txn ID</th>
+                                    <th>Type</th>
+                                    <th>Product (SKU)</th>
+                                    <th>Batch #</th>
+                                    <th>Qty</th>
+                                    <th>Unit Price</th>
+                                    <th>Total Value</th>
+                                    <th>Ref / Customer</th>
+                                    <th>Logged By</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fullTxnBody">
+                                <tr><td colspan="10" class="text-center">Loading audit log...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: REPORTS -->
+            <section id="tab-reports" class="tab-content">
+                <div class="page-header">
+                    <h2>Inventory & Financial Analytics</h2>
+                </div>
+                <div class="reports-grid">
+                    <div class="panel">
+                        <h3>Daily Closing Inventory Statement</h3>
+                        <p class="text-muted">Summary of daily stock movements and ending valuation.</p>
+                        <button class="btn btn-primary btn-sm" onclick="alert('Generating Daily Closing Statement PDF...')">Print Closing Report</button>
+                    </div>
+                    <div class="panel">
+                        <h3>Fast vs. Slow-Moving Stock</h3>
+                        <p class="text-muted">Analyzes product turnover velocity and dead inventory.</p>
+                        <button class="btn btn-secondary btn-sm" onclick="alert('Analyzing stock movement velocity...')">View Velocity Analysis</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL 1: ADD PRODUCT -->
+    <div class="modal-backdrop" id="addProductModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Add New Product to Catalog</h3>
+                <button class="modal-close" onclick="closeModal('addProductModal')">&times;</button>
+            </div>
+            <form id="addProductForm" onsubmit="handleAddProductSubmit(event)">
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label>SKU Code *</label>
+                        <input type="text" id="newSku" class="form-control" placeholder="e.g. SK-1001" required>
+                    </div>
+                    <div class="form-group col-6">
+                        <label>Barcode</label>
+                        <input type="text" id="newBarcode" class="form-control" placeholder="Scanned Barcode">
+                    </div>
+                </div>
+                <div class="form-group mt-2">
+                    <label>Product Title *</label>
+                    <input type="text" id="newTitle" class="form-control" placeholder="Product Title Name" required>
+                </div>
+                <div class="form-row mt-2">
+                    <div class="form-group col-6">
+                        <label>Search & Select Category *</label>
+                        <div class="combobox-wrapper" id="newCategoryWrapper">
+                            <input type="text" id="newCategoryInput" class="form-control combobox-input" placeholder="🔍 Type category name..." autocomplete="off" required>
+                            <input type="hidden" id="newCategory" required>
+                            <div class="combobox-dropdown" id="newCategoryDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="form-group col-6">
+                        <label>Unit of Measure *</label>
+                        <select id="newUom" class="custom-select">
+                            <option value="Pcs">Pcs (Pieces)</option>
+                            <option value="Boxes">Boxes</option>
+                            <option value="Kg">Kg (Kilograms)</option>
+                            <option value="Liters">Liters</option>
+                            <option value="Packs">Packs</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer mt-4">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addProductModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: BATCH SELECTION & FEFO OFFERS MODAL -->
+    <div class="modal-backdrop" id="batchSelectorModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <div>
+                    <h3>Select Product Batch & Offers</h3>
+                    <span class="text-muted" id="batchModalProductTitle">Product Batches</span>
+                </div>
+                <button class="modal-close" onclick="closeModal('batchSelectorModal')">&times;</button>
+            </div>
+            <div class="table-responsive mt-3">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Batch #</th>
+                            <th>Expiry Date</th>
+                            <th>Available Qty</th>
+                            <th>Selling Price</th>
+                            <th>Active Offer / Discount</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchModalBody">
+                        <tr><td colspan="6" class="text-center">Loading batches...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
