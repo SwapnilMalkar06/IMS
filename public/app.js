@@ -184,27 +184,16 @@ function onRoleChange() {
 function updateRolePermissionsUI() {
     const descEl = document.getElementById('roleDescText');
     const roleMap = {
-        'ADMIN': { text: '🛡️ Full Control: All operations, user admin, DB management.', allowEdit: true },
-        'MANAGER': { text: '👔 Operational Control: Stock In/Out, Product Add, Reports.', allowEdit: true },
-        'CLERK': { text: '📦 Transactions: Stock In & Stock Out processing.', allowEdit: true },
-        'AUDITOR': { text: '👁️ Read-Only: Audit log inspection & report export.', allowEdit: false }
+        'ADMIN': { text: '🛡️ Full Control: All operations, product creation & user admin.' },
+        'MANAGER': { text: '👔 Store Manager: Stock In/Out dispatches & reports.' },
+        'CLERK': { text: '📦 Inventory Clerk: Daily Stock In & Stock Out processing.' },
+        'AUDITOR': { text: '👁️ Auditor: Read-only inspection of catalog & audit ledger.' }
     };
 
-    if (descEl) descEl.innerText = roleMap[state.role].text;
-
-    // Toggle button visibilities based on role permissions
-    const editBtns = document.querySelectorAll('.manager-access, .admin-access');
-    editBtns.forEach(btn => {
-        if (!roleMap[state.role].allowEdit && state.role === 'AUDITOR') {
-            btn.style.display = 'none';
-        } else {
-            btn.style.display = '';
-        }
-    });
+    if (descEl) descEl.innerText = roleMap[state.role] ? roleMap[state.role].text : roleMap['CLERK'].text;
 }
 
 function updateDomainFieldsVisibility() {
-    // Show/Hide domain specific inputs (e.g. Expiry Date vs Serial Number)
     const dom = state.domain;
     document.querySelectorAll('.domain-field-pharmacy').forEach(el => {
         el.style.display = (dom === 'ALL' || dom === 'PHARMACY' || dom === 'GROCERY') ? '' : 'none';
@@ -213,6 +202,7 @@ function updateDomainFieldsVisibility() {
         el.style.display = (dom === 'ALL' || dom === 'ELECTRONICS' || dom === 'HARDWARE') ? '' : 'none';
     });
 }
+
 
 // ====================================================================
 // 3. DASHBOARD STATS LOGIC
@@ -744,28 +734,39 @@ function exportTransactionsCSV() {
 // 8. MODAL & NAVIGATION UI HELPERS
 // ====================================================================
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    try {
+        console.log('🔄 Switching tab to:', tabId);
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-    document.getElementById(`tab-${tabId}`)?.classList.add('active');
-    document.getElementById(`btn-tab-${tabId}`)?.classList.add('active');
+        const targetTab = document.getElementById(`tab-${tabId}`);
+        const targetBtn = document.getElementById(`btn-tab-${tabId}`);
 
-    if (tabId === 'dashboard') loadDashboardStats();
-    if (tabId === 'inventory') loadProducts();
-    if (tabId === 'transactions') loadTransactions();
+        if (targetTab) targetTab.classList.add('active');
+        if (targetBtn) targetBtn.classList.add('active');
+
+        if (tabId === 'dashboard') loadDashboardStats().catch(() => {});
+        if (tabId === 'inventory') loadProducts().catch(() => {});
+        if (tabId === 'transactions') loadTransactions().catch(() => {});
+    } catch (err) {
+        console.error('Error switching tab:', err);
+    }
 }
 
 function openModal(id) {
-    document.getElementById(id)?.classList.add('active');
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
 }
 
 function closeModal(id) {
-    document.getElementById(id)?.classList.remove('active');
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
 }
 
 function openAddProductModal() {
     openModal('addProductModal');
 }
+
 
 async function handleAddProductSubmit(e) {
     e.preventDefault();
