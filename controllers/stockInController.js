@@ -3,8 +3,7 @@
 // ====================================================================
 
 const db = require('../config/db');
-const { mockProducts } = require('./productController');
-const { mockBatches } = require('./batchController');
+const { mockProducts, mockBatches, getProductTotalStock } = require('../config/store');
 
 async function processStockIn(req, res) {
     let connection;
@@ -147,41 +146,49 @@ async function processStockIn(req, res) {
                 try { await connection.rollback(); } catch (e) {}
             }
 
-            // Fallback for Demo Mode (creates/updates in mock state)
-            let targetProd = mockProducts.find(p => p.id == product_id || p.title === product_title);
+            // Fallback for Demo Mode (creates/updates in central mock state)
+            let targetProd = mockProducts.find(p => p.id == product_id || p.title.toLowerCase() === (product_title || '').toLowerCase());
             if (!targetProd) {
                 targetProd = {
                     id: Date.now(),
                     sku: sku || `SKU-${Date.now().toString().slice(-4)}`,
-                    title: product_title || 'New Item',
+                    title: product_title || 'New Received Item',
                     category_id: category_id || 1,
                     category_name: 'General Merchandise',
                     unit_of_measure: unit_of_measure || 'Pcs',
                     total_stock: qty,
                     min_reorder_level: 10,
-                    domain_preset: 'GENERAL'
+                    domain_preset: domain_preset || 'GENERAL'
                 };
-                mockProducts.push(targetProd);
-            } else {
-                targetProd.total_stock = (targetProd.total_stock || 0) + qty;
+                mockProducts.unshift(targetProd);
             }
 
-            // Add demo batch
+            // Record batch in central mockBatches
             if (!mockBatches[targetProd.id]) mockBatches[targetProd.id] = [];
-            mockBatches[targetProd.id].push({
-                id: Date.now(),
-                batch_number: batchNo,
-                product_id: targetProd.id,
-                expiry_date: expiry_date || '2027-12-31',
-                available_qty: qty,
-                purchase_price: pPrice,
-                selling_price: sPrice,
-                batch_discount_percent: batch_discount_percent || 0,
-                offer_description: offer_description || 'New Stock Arrival'
-            });
+
+            const existingMockBatch = mockBatches[targetProd.id].find(b => b.batch_number === batchNo);
+            if (existingMockBatch) {
+                existingMockBatch.available_qty += qty;
+                existingMockBatch.purchase_price = pPrice;
+                existingMockBatch.selling_price = sPrice;
+            } else {
+                mockBatches[targetProd.id].unshift({
+                    id: Date.now(),
+                    batch_number: batchNo,
+                    product_id: targetProd.id,
+                    expiry_date: expiry_date || '2027-12-31',
+                    available_qty: qty,
+                    purchase_price: pPrice,
+                    selling_price: sPrice,
+                    batch_discount_percent: batch_discount_percent || 0,
+                    offer_description: offer_description || 'New Stock Arrival'
+                });
+            }
+
+            targetProd.total_stock = getProductTotalStock(targetProd.id);
 
             return res.status(201).json({
-                message: 'Stock In entry recorded successfully (Demo Mode)!',
+                message: 'Stock In entry recorded successfully!',
                 productId: targetProd.id,
                 txnNumber: `TXN-IN-${Date.now()}`
             });

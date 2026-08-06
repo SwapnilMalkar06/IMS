@@ -3,14 +3,7 @@
 // ====================================================================
 
 const db = require('../config/db');
-
-// Fallback demo products if DB is not connected yet
-let mockProducts = [
-    { id: 1, sku: 'PHARM-5001', barcode: '8901001002001', title: 'Paracetamol 500mg Tablets (Box of 100)', category_id: 1, category_name: 'Pharmaceuticals', unit_of_measure: 'Boxes', total_stock: 97, min_reorder_level: 15, domain_preset: 'PHARMACY' },
-    { id: 2, sku: 'PHARM-5002', barcode: '8901001002002', title: 'Amoxicillin 250mg Capsules', category_id: 1, category_name: 'Pharmaceuticals', unit_of_measure: 'Boxes', total_stock: 40, min_reorder_level: 10, domain_preset: 'PHARMACY' },
-    { id: 3, sku: 'ELEC-1001', barcode: '8902002003001', title: 'Wireless Ergonomic Mouse', category_id: 3, category_name: 'Consumer Electronics', unit_of_measure: 'Pcs', total_stock: 30, min_reorder_level: 5, domain_preset: 'ELECTRONICS' },
-    { id: 4, sku: 'FOOD-3001', barcode: '8903003004001', title: 'Whole Wheat Bread 400g', category_id: 2, category_name: 'Packaged Foods & Dairy', unit_of_measure: 'Pcs', total_stock: 18, min_reorder_level: 25, domain_preset: 'GROCERY' }
-];
+const { mockProducts, mockBatches, recalculateAllStock } = require('../config/store');
 
 async function getProducts(req, res) {
     try {
@@ -48,10 +41,16 @@ async function getProducts(req, res) {
         return res.json(rows);
     } catch (err) {
         console.warn('⚠️ MySQL not accessible, returning fallback mock products:', err.message);
-        const { domain } = req.query;
+        recalculateAllStock();
+
+        const { domain, search } = req.query;
         let filtered = mockProducts;
         if (domain && domain !== 'ALL') {
-            filtered = mockProducts.filter(p => p.domain_preset === domain);
+            filtered = filtered.filter(p => p.domain_preset === domain);
+        }
+        if (search) {
+            const s = search.toLowerCase();
+            filtered = filtered.filter(p => p.title.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s));
         }
         return res.json(filtered);
     }
@@ -75,13 +74,24 @@ async function createProduct(req, res) {
         return res.status(201).json({ id: result.insertId, message: 'Product created successfully!' });
     } catch (err) {
         console.warn('⚠️ MySQL unavailable for createProduct, adding to mock state');
-        const newObj = { id: Date.now(), ...req.body, total_stock: 0 };
-        mockProducts.push(newObj);
+        const newObj = {
+            id: Date.now(),
+            sku: req.body.sku || `SKU-${Date.now().toString().slice(-4)}`,
+            barcode: req.body.barcode || null,
+            title: req.body.title || 'New Item',
+            category_id: req.body.category_id || 1,
+            category_name: req.body.category_name || 'General',
+            unit_of_measure: req.body.unit_of_measure || 'Pcs',
+            total_stock: 0,
+            min_reorder_level: req.body.min_reorder_level || 10,
+            domain_preset: req.body.domain_preset || 'GENERAL'
+        };
+        mockProducts.unshift(newObj);
+        mockBatches[newObj.id] = [];
         return res.status(201).json({ id: newObj.id, message: 'Product added (Demo Mode)!' });
     }
 }
 
-// PUT /api/products/:id (Edit Product Title, SKU, Category, UOM, Reorder Level)
 async function updateProduct(req, res) {
     try {
         const { id } = req.params;
@@ -93,15 +103,7 @@ async function updateProduct(req, res) {
 
         const [result] = await db.query(`
             UPDATE products 
-            SET sku = ?,
-                barcode = ?,
-                title = ?,
-                category_id = ?,
-                unit_of_measure = ?,
-                min_reorder_level = ?,
-                domain_preset = ?,
-                brand = ?,
-                storage_location = ?
+            SET sku = ?, barcode = ?, title = ?, category_id = ?, unit_of_measure = ?, min_reorder_level = ?, domain_preset = ?, brand = ?, storage_location = ?
             WHERE id = ?
         `, [
             sku, barcode || null, title, category_id || 1, unit_of_measure || 'Pcs', min_reorder_level || 10, domain_preset || 'GENERAL', brand || null, storage_location || null, id
@@ -109,7 +111,6 @@ async function updateProduct(req, res) {
 
         return res.json({ message: 'Product updated successfully!' });
     } catch (err) {
-        console.warn('⚠️ MySQL unavailable for updateProduct, updating mock state');
         const { id } = req.params;
         const index = mockProducts.findIndex(p => p.id == id);
         if (index !== -1) {
@@ -119,22 +120,23 @@ async function updateProduct(req, res) {
     }
 }
 
-// DELETE /api/products/:id (Delete Product from Inventory)
 async function deleteProduct(req, res) {
     try {
         const { id } = req.params;
 
-        // Delete associated product batches & product
         await db.query(`DELETE FROM product_batches WHERE product_id = ?`, [id]);
         await db.query(`DELETE FROM products WHERE id = ?`, [id]);
 
         return res.json({ message: 'Product deleted successfully from inventory!' });
     } catch (err) {
-        console.warn('⚠️ MySQL unavailable for deleteProduct, deleting from mock state');
         const { id } = req.params;
-        mockProducts = mockProducts.filter(p => p.id != id);
+        const index = mockProducts.findIndex(p => p.id == id);
+        if (index !== -1) {
+            mockProducts.splice(index, 1);
+            delete mockBatches[id];
+        }
         return res.json({ message: 'Product deleted (Demo Mode)!' });
     }
 }
 
-module.exports = { getProducts, createProduct, updateProduct, deleteProduct, mockProducts };
+module.exports = { getProducts, createProduct, updateProduct, deleteProduct };
