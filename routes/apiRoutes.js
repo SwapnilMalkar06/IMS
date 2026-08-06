@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 
 const { requirePermission } = require('../middleware/roleGuard');
-const { getProducts, createProduct } = require('../controllers/productController');
+const { getProducts, createProduct, updateProduct, deleteProduct } = require('../controllers/productController');
 const { getProductBatches } = require('../controllers/batchController');
 const { processStockIn } = require('../controllers/stockInController');
 const { processStockOut } = require('../controllers/stockOutController');
@@ -52,9 +52,12 @@ router.post('/login', async (req, res) => {
 // Dashboard Stats (Read Permission)
 router.get('/dashboard/stats', requirePermission('READ'), getDashboardStats);
 
-// Products Catalog Routes
+// Products Catalog Routes (Create, Read, Update, Delete)
 router.get('/products', requirePermission('READ'), getProducts);
 router.post('/products', requirePermission('MANAGE_PRODUCTS'), createProduct);
+router.put('/products/:id', requirePermission('MANAGE_PRODUCTS'), updateProduct);
+router.delete('/products/:id', requirePermission('MANAGE_PRODUCTS'), deleteProduct);
+
 
 // Batch FEFO Query Routes
 router.get('/batches/:productId', requirePermission('READ'), getProductBatches);

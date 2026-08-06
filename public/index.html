@@ -502,13 +502,67 @@
                         </select>
                     </div>
                 </div>
+    <!-- MODAL 1B: EDIT PRODUCT -->
+    <div class="modal-backdrop" id="editProductModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>✏️ Edit Product Details</h3>
+                <button class="modal-close" onclick="closeModal('editProductModal')">&times;</button>
+            </div>
+            <form id="editProductForm" onsubmit="handleEditProductSubmit(event)">
+                <input type="hidden" id="editProductId">
+                <div class="form-row">
+                    <div class="form-group col-6">
+                        <label>SKU Code *</label>
+                        <input type="text" id="editSku" class="form-control" placeholder="e.g. SK-1001" required>
+                    </div>
+                    <div class="form-group col-6">
+                        <label>Barcode</label>
+                        <input type="text" id="editBarcode" class="form-control" placeholder="Scanned Barcode">
+                    </div>
+                </div>
+                <div class="form-group mt-2">
+                    <label>Product Title *</label>
+                    <input type="text" id="editTitle" class="form-control" placeholder="Product Title Name" required>
+                </div>
+                <div class="form-row mt-2">
+                    <div class="form-group col-6">
+                        <label>Search & Select Category *</label>
+                        <div class="combobox-wrapper" id="editCategoryWrapper">
+                            <input type="text" id="editCategoryInput" class="form-control combobox-input" placeholder="🔍 Type category name..." autocomplete="off" required>
+                            <input type="hidden" id="editCategory" required>
+                            <div class="combobox-dropdown" id="editCategoryDropdown"></div>
+                        </div>
+                    </div>
+                    <div class="form-group col-6">
+                        <label>Unit of Measure *</label>
+                        <select id="editUom" class="custom-select">
+                            <option value="Pcs">Pcs (Pieces)</option>
+                            <option value="Boxes">Boxes</option>
+                            <option value="Kg">Kg (Kilograms)</option>
+                            <option value="Liters">Liters</option>
+                            <option value="Packs">Packs</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row mt-2">
+                    <div class="form-group col-6">
+                        <label>Min Reorder Threshold</label>
+                        <input type="number" id="editReorderLevel" class="form-control" value="10">
+                    </div>
+                    <div class="form-group col-6">
+                        <label>Storage Bin / Location</label>
+                        <input type="text" id="editStorageLocation" class="form-control" placeholder="Shelf A-1">
+                    </div>
+                </div>
                 <div class="modal-footer mt-4">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('addProductModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Product</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editProductModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">💾 Update Product</button>
                 </div>
             </form>
         </div>
     </div>
+
 
     <!-- MODAL 2: BATCH SELECTION & FEFO OFFERS MODAL -->
     <div class="modal-backdrop" id="batchSelectorModal">

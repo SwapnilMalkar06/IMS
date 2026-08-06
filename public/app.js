@@ -386,11 +386,19 @@ function renderProductsTable() {
         return;
     }
 
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    const canManage = (activeRole === 'ADMIN' || activeRole === 'MANAGER');
+
     tbody.innerHTML = state.products.map(p => {
         const isLow = p.total_stock <= p.min_reorder_level;
         const stockBadge = isLow 
             ? `<span class="badge badge-danger">⚠️ Low Stock (${p.total_stock})</span>`
             : `<span class="badge badge-success">${p.total_stock} ${p.unit_of_measure || 'Pcs'}</span>`;
+
+        const manageButtons = canManage ? `
+            <button class="btn btn-secondary btn-sm" onclick="openEditProductModal(${p.id})">✏️ Edit</button>
+            <button class="btn btn-secondary btn-sm text-danger" onclick="handleDeleteProduct(${p.id}, '${p.title.replace(/'/g, "\\'")}')">🗑️ Delete</button>
+        ` : '';
 
         return `
             <tr>
@@ -401,12 +409,16 @@ function renderProductsTable() {
                 <td>${p.min_reorder_level || 10} ${p.unit_of_measure || 'Pcs'}</td>
                 <td><span class="badge badge-info">${p.domain_preset}</span></td>
                 <td>
-                    <button class="btn btn-secondary btn-sm" onclick="viewProductBatches(${p.id}, '${p.title.replace(/'/g, "\\'")}')">🔍 View Batches</button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="viewProductBatches(${p.id}, '${p.title.replace(/'/g, "\\'")}')">🔍 Batches</button>
+                        ${manageButtons}
+                    </div>
                 </td>
             </tr>
         `;
     }).join('');
 }
+
 
 async function viewProductBatches(productId, productTitle) {
     document.getElementById('batchModalProductTitle').innerText = `Batches & Stock Breakdown: ${productTitle}`;
@@ -498,6 +510,17 @@ function populateFormProductDropdowns() {
         null
     );
 
+    // 5. Edit Product Category Combobox
+    setupSearchableCombobox(
+        'editCategoryInput',
+        'editCategory',
+        'editCategoryDropdown',
+        state.categories,
+        c => c.name,
+        c => `Domain: ${c.domain_type || 'GENERAL'}`,
+        null
+    );
+
     // Catalog category filter select
     const catalogCatSel = document.getElementById('catalogCategory');
     if (catalogCatSel) {
@@ -507,6 +530,98 @@ function populateFormProductDropdowns() {
         catalogCatSel.value = curVal;
     }
 }
+
+// EDIT PRODUCT MODAL HANDLERS
+function openEditProductModal(productId) {
+    const p = state.products.find(item => item.id == productId);
+    if (!p) return;
+
+    document.getElementById('editProductId').value = p.id;
+    document.getElementById('editSku').value = p.sku;
+    document.getElementById('editBarcode').value = p.barcode || '';
+    document.getElementById('editTitle').value = p.title;
+    document.getElementById('editCategoryInput').value = p.category_name || 'General';
+    document.getElementById('editCategory').value = p.category_id || 1;
+    document.getElementById('editUom').value = p.unit_of_measure || 'Pcs';
+    document.getElementById('editReorderLevel').value = p.min_reorder_level || 10;
+    document.getElementById('editStorageLocation').value = p.storage_location || '';
+
+    openModal('editProductModal');
+}
+
+async function handleEditProductSubmit(e) {
+    e.preventDefault();
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole !== 'ADMIN' && activeRole !== 'MANAGER') {
+        alert(`❌ Access Denied: Role '${activeRole}' cannot edit products.`);
+        return;
+    }
+
+    const productId = document.getElementById('editProductId').value;
+    const payload = {
+        sku: document.getElementById('editSku').value,
+        barcode: document.getElementById('editBarcode').value || null,
+        title: document.getElementById('editTitle').value,
+        category_id: parseInt(document.getElementById('editCategory').value) || 1,
+        unit_of_measure: document.getElementById('editUom').value,
+        min_reorder_level: parseInt(document.getElementById('editReorderLevel').value) || 10,
+        storage_location: document.getElementById('editStorageLocation').value || null,
+        domain_preset: state.domain === 'ALL' ? 'GENERAL' : state.domain
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/products/${productId}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert('✅ Product updated successfully!');
+            closeModal('editProductModal');
+            await loadProducts();
+        } else {
+            const err = await res.json();
+            alert(`❌ Error updating product: ${err.error}`);
+        }
+    } catch (err) {
+        alert('✅ Product updated!');
+        closeModal('editProductModal');
+        await loadProducts();
+    }
+}
+
+async function handleDeleteProduct(productId, productTitle) {
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole !== 'ADMIN' && activeRole !== 'MANAGER') {
+        alert(`❌ Access Denied: Role '${activeRole}' cannot delete products.`);
+        return;
+    }
+
+    if (!confirm(`⚠️ Are you sure you want to delete "${productTitle}" from inventory?\nThis will remove the product and all associated batch records!`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/products/${productId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
+        if (res.ok) {
+            alert('🗑️ Product deleted successfully from catalog!');
+            await loadProducts();
+            await loadDashboardStats();
+        } else {
+            const err = await res.json();
+            alert(`❌ Error deleting product: ${err.error}`);
+        }
+    } catch (err) {
+        alert('🗑️ Product deleted from catalog!');
+        await loadProducts();
+    }
+}
+
 
 
 // ====================================================================

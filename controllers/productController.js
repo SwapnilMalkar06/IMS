@@ -5,7 +5,7 @@
 const db = require('../config/db');
 
 // Fallback demo products if DB is not connected yet
-const mockProducts = [
+let mockProducts = [
     { id: 1, sku: 'PHARM-5001', barcode: '8901001002001', title: 'Paracetamol 500mg Tablets (Box of 100)', category_id: 1, category_name: 'Pharmaceuticals', unit_of_measure: 'Boxes', total_stock: 97, min_reorder_level: 15, domain_preset: 'PHARMACY' },
     { id: 2, sku: 'PHARM-5002', barcode: '8901001002002', title: 'Amoxicillin 250mg Capsules', category_id: 1, category_name: 'Pharmaceuticals', unit_of_measure: 'Boxes', total_stock: 40, min_reorder_level: 10, domain_preset: 'PHARMACY' },
     { id: 3, sku: 'ELEC-1001', barcode: '8902002003001', title: 'Wireless Ergonomic Mouse', category_id: 3, category_name: 'Consumer Electronics', unit_of_measure: 'Pcs', total_stock: 30, min_reorder_level: 5, domain_preset: 'ELECTRONICS' },
@@ -81,4 +81,60 @@ async function createProduct(req, res) {
     }
 }
 
-module.exports = { getProducts, createProduct, mockProducts };
+// PUT /api/products/:id (Edit Product Title, SKU, Category, UOM, Reorder Level)
+async function updateProduct(req, res) {
+    try {
+        const { id } = req.params;
+        const { sku, barcode, title, category_id, unit_of_measure, min_reorder_level, domain_preset, brand, storage_location } = req.body;
+
+        if (!title) {
+            return res.status(400).json({ error: 'Product Title is required.' });
+        }
+
+        const [result] = await db.query(`
+            UPDATE products 
+            SET sku = ?,
+                barcode = ?,
+                title = ?,
+                category_id = ?,
+                unit_of_measure = ?,
+                min_reorder_level = ?,
+                domain_preset = ?,
+                brand = ?,
+                storage_location = ?
+            WHERE id = ?
+        `, [
+            sku, barcode || null, title, category_id || 1, unit_of_measure || 'Pcs', min_reorder_level || 10, domain_preset || 'GENERAL', brand || null, storage_location || null, id
+        ]);
+
+        return res.json({ message: 'Product updated successfully!' });
+    } catch (err) {
+        console.warn('⚠️ MySQL unavailable for updateProduct, updating mock state');
+        const { id } = req.params;
+        const index = mockProducts.findIndex(p => p.id == id);
+        if (index !== -1) {
+            mockProducts[index] = { ...mockProducts[index], ...req.body };
+        }
+        return res.json({ message: 'Product updated (Demo Mode)!' });
+    }
+}
+
+// DELETE /api/products/:id (Delete Product from Inventory)
+async function deleteProduct(req, res) {
+    try {
+        const { id } = req.params;
+
+        // Delete associated product batches & product
+        await db.query(`DELETE FROM product_batches WHERE product_id = ?`, [id]);
+        await db.query(`DELETE FROM products WHERE id = ?`, [id]);
+
+        return res.json({ message: 'Product deleted successfully from inventory!' });
+    } catch (err) {
+        console.warn('⚠️ MySQL unavailable for deleteProduct, deleting from mock state');
+        const { id } = req.params;
+        mockProducts = mockProducts.filter(p => p.id != id);
+        return res.json({ message: 'Product deleted (Demo Mode)!' });
+    }
+}
+
+module.exports = { getProducts, createProduct, updateProduct, deleteProduct, mockProducts };
