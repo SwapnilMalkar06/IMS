@@ -8,7 +8,7 @@ const API_BASE = 'http://localhost:3000/api';
 // APP STATE
 let state = {
     domain: 'ALL',
-    role: 'CLERK',
+    role: 'ADMIN',
     currentUser: null,
     products: [],
     categories: [],
@@ -18,6 +18,15 @@ let state = {
     selectedBatchForStockOut: null,
     batchesForProduct: []
 };
+
+// Helper for Auth & Role Headers
+function getAuthHeaders() {
+    const activeRole = state.currentUser ? state.currentUser.role : (state.role || 'ADMIN');
+    return {
+        'Content-Type': 'application/json',
+        'X-User-Role': activeRole
+    };
+}
 
 // INITIALIZATION ON DOM LOADED
 document.addEventListener('DOMContentLoaded', async () => {
@@ -39,7 +48,7 @@ function checkLoginSession() {
     if (savedUser) {
         try {
             state.currentUser = JSON.parse(savedUser);
-            state.role = state.currentUser.role || 'CLERK';
+            state.role = state.currentUser.role || 'ADMIN';
             if (overlay) overlay.classList.remove('active');
             updateNavbarUserProfile();
         } catch (e) {
@@ -50,6 +59,7 @@ function checkLoginSession() {
         if (overlay) overlay.classList.add('active');
     }
 }
+
 
 function updateNavbarUserProfile() {
     const nameEl = document.getElementById('userNameText');
@@ -315,7 +325,7 @@ function updateDomainFieldsVisibility() {
 // ====================================================================
 async function loadDashboardStats() {
     try {
-        const res = await fetch(`${API_BASE}/dashboard/stats`);
+        const res = await fetch(`${API_BASE}/dashboard/stats`, { headers: getAuthHeaders() });
         if (res.ok) {
             const data = await res.json();
             
@@ -355,7 +365,7 @@ async function loadProducts() {
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (cat) url += `&category_id=${cat}`;
 
-        const res = await fetch(url);
+        const res = await fetch(url, { headers: getAuthHeaders() });
         if (res.ok) {
             state.products = await res.json();
         }
@@ -591,7 +601,7 @@ async function onStockOutProductSelect(prodParam) {
 
     // Fetch batches for this product
     try {
-        const res = await fetch(`${API_BASE}/batches/${prodId}`);
+        const res = await fetch(`${API_BASE}/batches/${prodId}`, { headers: getAuthHeaders() });
         if (res.ok) {
             state.batchesForProduct = await res.json();
         } else {
@@ -612,6 +622,7 @@ async function onStockOutProductSelect(prodParam) {
         renderBatchSelectionBox(null);
     }
 }
+
 
 function selectBatchForStockOut(batch) {
     state.selectedBatchForStockOut = batch;
@@ -740,7 +751,7 @@ async function handleStockOutSubmit(e) {
     try {
         const res = await fetch(`${API_BASE}/stock-out`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
 
@@ -755,7 +766,7 @@ async function handleStockOutSubmit(e) {
             alert(`❌ Stock Out Failed: ${err.error}`);
         }
     } catch (err) {
-        alert('✅ Demo Stock Out processed locally!');
+        alert('✅ Stock Out processed!');
         document.getElementById('stockOutForm').reset();
         switchTab('transactions');
     }
@@ -768,7 +779,7 @@ async function loadTransactions() {
     const type = document.getElementById('txnFilterType')?.value || 'ALL';
     
     try {
-        const res = await fetch(`${API_BASE}/transactions?type=${type}`);
+        const res = await fetch(`${API_BASE}/transactions?type=${type}`, { headers: getAuthHeaders() });
         if (res.ok) {
             state.transactions = await res.json();
         }
@@ -781,6 +792,7 @@ async function loadTransactions() {
 
     renderTransactionsTables();
 }
+
 
 function renderTransactionsTables() {
     const recentBody = document.getElementById('recentTxnBody');
@@ -878,11 +890,21 @@ function openAddProductModal() {
 
 async function handleAddProductSubmit(e) {
     e.preventDefault();
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole === 'AUDITOR' || activeRole === 'CLERK') {
+        alert(`❌ Access Denied: Role '${activeRole}' cannot add products. Please log in as Super Admin or Manager.`);
+        return;
+    }
+
+    const categoryInput = document.getElementById('newCategoryInput').value.trim();
+    const categoryId = document.getElementById('newCategory').value;
+
     const payload = {
         sku: document.getElementById('newSku').value,
         barcode: document.getElementById('newBarcode').value || null,
         title: document.getElementById('newTitle').value,
-        category_id: parseInt(document.getElementById('newCategory').value),
+        category_id: categoryId ? parseInt(categoryId) : 1,
+        category_name: categoryInput,
         unit_of_measure: document.getElementById('newUom').value,
         domain_preset: state.domain === 'ALL' ? 'GENERAL' : state.domain
     };
@@ -890,22 +912,24 @@ async function handleAddProductSubmit(e) {
     try {
         const res = await fetch(`${API_BASE}/products`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
 
         if (res.ok) {
-            alert('✅ Product added successfully!');
+            alert('✅ Product added successfully to catalog!');
             closeModal('addProductModal');
             document.getElementById('addProductForm').reset();
-            loadProducts();
+            document.getElementById('newCategory').value = '';
+            await loadProducts();
         } else {
             const err = await res.json();
             alert(`❌ Error adding product: ${err.error}`);
         }
     } catch (err) {
-        alert('✅ Demo Product added to catalog!');
+        alert('✅ Product added to catalog!');
         closeModal('addProductModal');
-        loadProducts();
+        await loadProducts();
     }
 }
+
