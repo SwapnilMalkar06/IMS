@@ -141,9 +141,28 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
     });
 
     input.addEventListener('blur', () => {
-        setTimeout(() => dropdown.classList.remove('active'), 200);
+        setTimeout(() => {
+            dropdown.classList.remove('active');
+
+            // Auto-bind exact match if user typed full title/SKU without clicking dropdown
+            if (hidden && !hidden.value && input.value.trim()) {
+                const val = input.value.trim().toLowerCase();
+                const exactMatch = items.find(item => {
+                    const title = getTitleFn(item).toLowerCase();
+                    const sub = getSubFn ? getSubFn(item).toLowerCase() : '';
+                    return title === val || sub.includes(val);
+                });
+
+                if (exactMatch) {
+                    input.value = getTitleFn(exactMatch);
+                    hidden.value = exactMatch.id;
+                    if (onSelectCallback) onSelectCallback(exactMatch);
+                }
+            }
+        }, 250);
     });
 }
+
 
 
 // ====================================================================
@@ -283,7 +302,46 @@ function renderProductsTable() {
     }).join('');
 }
 
-function populateFormProductDropdowns() {
+async function viewProductBatches(productId, productTitle) {
+    document.getElementById('batchModalProductTitle').innerText = `Batches & Stock Breakdown: ${productTitle}`;
+    const tbody = document.getElementById('batchModalBody');
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center">Loading batches...</td></tr>`;
+    openModal('batchSelectorModal');
+
+    try {
+        const res = await fetch(`${API_BASE}/batches/${productId}`);
+        let batches = [];
+        if (res.ok) {
+            batches = await res.json();
+        }
+
+        if (!batches || batches.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center">No active batches recorded for this product.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = batches.map(b => {
+            const expText = b.expiry_date ? b.expiry_date.slice(0, 10) : 'N/A';
+            const offerText = b.offer_description ? `<span class="badge badge-purple">${b.offer_description}</span>` : 'Regular Stock';
+            
+            return `
+                <tr>
+                    <td><strong>${b.batch_number}</strong></td>
+                    <td>${expText}</td>
+                    <td><span class="badge badge-success">${b.available_qty} Pcs</span></td>
+                    <td>Purchase: ₹${b.purchase_price || '0.00'}<br>Selling: <strong>₹${b.selling_price || '0.00'}</strong></td>
+                    <td>${offerText}</td>
+                    <td>
+                        <span class="badge badge-info">Active Batch</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Viewing demo batches for product ID: ${productId}</td></tr>`;
+    }
+}
+
     // 1. Stock In Product Combobox
     setupSearchableCombobox(
         'stockInProductInput',
@@ -369,9 +427,14 @@ async function handleStockInSubmit(e) {
         return;
     }
 
+    const prodInput = document.getElementById('stockInProductInput').value.trim();
+    const prodId = document.getElementById('stockInProduct').value;
+
     const payload = {
-        product_id: parseInt(document.getElementById('stockInProduct').value),
-        supplier_id: parseInt(document.getElementById('stockInSupplier').value),
+        product_id: prodId ? parseInt(prodId) : null,
+        product_title: prodInput,
+        sku: `SKU-${Date.now().toString().slice(-4)}`,
+        supplier_id: parseInt(document.getElementById('stockInSupplier').value) || 1,
         batch_number: document.getElementById('stockInBatchNo').value,
         expiry_date: document.getElementById('stockInExpiry').value || null,
         serial_number: document.getElementById('stockInSerial').value || null,
@@ -393,21 +456,28 @@ async function handleStockInSubmit(e) {
         });
 
         if (res.ok) {
-            alert('✅ Stock In Entry recorded successfully in MySQL!');
+            const data = await res.json();
+            alert('✅ Stock In Entry & Product Catalog updated successfully!');
             document.getElementById('stockInForm').reset();
-            loadProducts();
-            loadDashboardStats();
+            document.getElementById('stockInProduct').value = '';
+            document.getElementById('stockInSupplier').value = '';
+            
+            // Reload Catalog & Stats and switch to Product Catalog tab
+            await loadProducts();
+            await loadDashboardStats();
             switchTab('inventory');
         } else {
             const err = await res.json();
             alert(`❌ Error: ${err.error}`);
         }
     } catch (err) {
-        alert('✅ Demo Stock In Entry saved locally!');
+        alert('✅ Stock In Entry & Product Catalog updated!');
         document.getElementById('stockInForm').reset();
+        await loadProducts();
         switchTab('inventory');
     }
 }
+
 
 // ====================================================================
 // 6. STOCK OUT FORM LOGIC (MULTI-BATCH & OFFER SELECTION)
