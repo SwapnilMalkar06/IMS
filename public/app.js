@@ -1451,7 +1451,7 @@ async function loadActiveReport() {
     const tableTitle = document.getElementById('reportTableTitle');
 
     if (subTab === 'sales') {
-        if (tableTitle) tableTitle.innerText = '📊 Financial Sales & Revenue Breakdown';
+        if (tableTitle) tableTitle.innerText = '📊 Financial Sales & Revenue Breakdown by Category';
         try {
             const res = await fetch(`${API_BASE}/reports/financial-sales?period=${period}`, { headers: getAuthHeaders() });
             const data = await res.json();
@@ -1481,32 +1481,33 @@ async function loadActiveReport() {
             if (tableHead) {
                 tableHead.innerHTML = `
                     <tr>
-                        <th>Product Title</th>
-                        <th>SKU</th>
-                        <th>Units Sold</th>
-                        <th>Avg Selling Price</th>
-                        <th>Total Revenue</th>
+                        <th>Category Name</th>
+                        <th>Domain Scope</th>
+                        <th>Products Sold (#)</th>
+                        <th>Units Sold (Qty)</th>
+                        <th>Total Category Revenue</th>
                     </tr>
                 `;
             }
 
             let list = [...state.reportDataset];
-            if (search) list = list.filter(i => (i.product_title || '').toLowerCase().includes(search.toLowerCase()));
+            if (search) list = list.filter(i => (i.category_name || '').toLowerCase().includes(search.toLowerCase()));
 
             if (tbody) {
                 tbody.innerHTML = list.map(i => `
                     <tr>
-                        <td><strong>${i.product_title}</strong></td>
-                        <td>${i.product_sku}</td>
-                        <td><strong>${i.units_sold} Pcs</strong></td>
-                        <td>₹${parseFloat(i.avg_price || 0).toFixed(2)}</td>
-                        <td><strong style="color: #10b981;">₹${parseFloat(i.revenue || 0).toFixed(2)}</strong></td>
+                        <td><strong>${i.category_name || 'General'}</strong></td>
+                        <td><span class="badge badge-purple">${i.domain_type || 'GENERAL'}</span></td>
+                        <td><strong>${i.total_products_sold || 1} SKUs</strong></td>
+                        <td><strong>${i.total_units_sold || i.units_sold || 0} Pcs</strong></td>
+                        <td><strong style="color: #10b981; font-size: 1.05rem;">₹${parseFloat(i.revenue || 0).toFixed(2)}</strong></td>
                     </tr>
                 `).join('') || `<tr><td colspan="5" class="text-center text-muted">No sales records found for this period.</td></tr>`;
             }
 
             renderReportCharts('sales', list);
         } catch (e) {}
+
     } else if (subTab === 'velocity') {
         if (tableTitle) tableTitle.innerText = '⚡ Fast-Moving vs Slow-Moving / Dead Stock Items';
         try {
@@ -1674,12 +1675,11 @@ function renderReportCharts(type, data) {
     const chart2Title = document.getElementById('chart2Title');
 
     if (type === 'sales') {
-        if (chart1Title) chart1Title.innerText = '📈 Product Revenue Breakdown';
-        if (chart2Title) chart2Title.innerText = '🍩 Product Sales Volume (Units)';
+        if (chart1Title) chart1Title.innerText = '📈 Category Revenue Comparison (₹)';
+        if (chart2Title) chart2Title.innerText = '🍩 Revenue Share % by Category';
 
-        const labels = data.slice(0, 5).map(d => d.product_title ? d.product_title.slice(0, 18) + '...' : 'Item');
-        const revenues = data.slice(0, 5).map(d => d.revenue || 0);
-        const units = data.slice(0, 5).map(d => d.units_sold || 0);
+        const labels = data.map(d => d.category_name || 'Category');
+        const revenues = data.map(d => d.revenue || 0);
 
         state.reportCharts.c1 = new Chart(ctx1, {
             type: 'bar',
@@ -1694,11 +1694,12 @@ function renderReportCharts(type, data) {
             type: 'doughnut',
             data: {
                 labels,
-                datasets: [{ data: units, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'] }]
+                datasets: [{ data: revenues, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'] }]
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
-    } else if (type === 'velocity') {
+    }
+ else if (type === 'velocity') {
         if (chart1Title) chart1Title.innerText = '⚡ Product Turnover Velocity (Units Sold)';
         if (chart2Title) chart2Title.innerText = '🛑 Current Warehouse Stock Allocation';
 

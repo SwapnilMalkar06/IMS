@@ -157,7 +157,7 @@ async function getNearExpiryItems(req, res) {
 // EXECUTIVE REPORTS & ANALYTICS MODULE ENDPOINTS
 // ====================================================================
 
-// Report 1: Financial Sales Performance
+// Report 1: Financial Sales Performance (Category-wise Revenue Breakdown)
 async function getSalesReport(req, res) {
     try {
         const [summary] = await db.query(`
@@ -173,15 +173,16 @@ async function getSalesReport(req, res) {
 
         const [rows] = await db.query(`
             SELECT 
-                p.title AS product_title,
-                p.sku AS product_sku,
-                SUM(t.quantity) AS units_sold,
-                SUM(t.total_amount) AS revenue,
-                AVG(t.unit_price) AS avg_price
+                COALESCE(c.name, 'General Merchandise') AS category_name,
+                COALESCE(c.domain_type, 'GENERAL') AS domain_type,
+                COUNT(DISTINCT t.product_id) AS total_products_sold,
+                SUM(t.quantity) AS total_units_sold,
+                SUM(t.total_amount) AS revenue
             FROM transactions t
             JOIN products p ON t.product_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
             WHERE t.txn_type = 'SALE'
-            GROUP BY t.product_id
+            GROUP BY c.id, c.name, c.domain_type
             ORDER BY revenue DESC
         `);
 
@@ -190,12 +191,15 @@ async function getSalesReport(req, res) {
         return res.json({
             summary: { total_bills: 4, total_units_sold: 18, gross_sales: 3450.00, total_discounts: 50.00, net_revenue: 3400.00 },
             items: [
-                { product_title: 'Paracetamol 500mg Tablets (Box of 100)', product_sku: 'PHARM-5001', units_sold: 10, revenue: 150.00, avg_price: 15.00 },
-                { product_title: 'Organic Whole Milk 1L', product_sku: 'GROC-1002', units_sold: 8, revenue: 27.20, avg_price: 3.40 }
+                { category_name: 'Pharmaceuticals', domain_type: 'PHARMACY', total_products_sold: 3, total_units_sold: 10, revenue: 150.00 },
+                { category_name: 'Packaged Foods & Dairy', domain_type: 'GROCERY', total_products_sold: 2, total_units_sold: 8, revenue: 27.20 },
+                { category_name: 'Consumer Electronics', domain_type: 'ELECTRONICS', total_products_sold: 1, total_units_sold: 2, revenue: 80.00 },
+                { category_name: 'General Merchandise', domain_type: 'GENERAL', total_products_sold: 4, total_units_sold: 15, revenue: 200.00 }
             ]
         });
     }
 }
+
 
 // Report 2: Sales Velocity (Fast vs Slow Moving Items & Dead Stock)
 async function getSalesVelocityReport(req, res) {
