@@ -9,6 +9,7 @@ async function processStockOut(req, res) {
     let connection;
     try {
         const {
+            items, // Array of items for multi-product bill checkout
             product_id,
             batch_id,
             quantity,
@@ -23,67 +24,87 @@ async function processStockOut(req, res) {
             remarks
         } = req.body;
 
-        const qty = parseInt(quantity);
-        if (!product_id || !batch_id || !qty || qty <= 0) {
-            return res.status(400).json({ error: 'Product ID, Batch ID, and valid Outgoing Quantity are required.' });
+        // Auto-generate unique bill reference if not provided
+        const billNumber = invoice_ref || `BILL-${Date.now().toString().slice(-6)}`;
+        const type = txn_type || 'SALE';
+        const user = user_id || 1;
+
+        // Normalize items array (supports single item or multi-item cart)
+        const itemsToProcess = Array.isArray(items) && items.length > 0 ? items : [
+            { product_id, batch_id, quantity, unit_price, discount_amount, tax_amount }
+        ];
+
+        if (itemsToProcess.length === 0 || !itemsToProcess[0].product_id) {
+            return res.status(400).json({ error: 'At least one valid item is required for Stock Out dispatch.' });
         }
 
         try {
             connection = await db.getConnection();
             await connection.beginTransaction();
 
-            // Lock & Verify batch available stock (Stock Guard Protection)
-            const [batchRows] = await connection.query(`
-                SELECT id, available_qty, selling_price, batch_discount_percent 
-                FROM product_batches 
-                WHERE id = ? FOR UPDATE
-            `, [batch_id]);
+            const processedTxns = [];
 
-            if (batchRows.length === 0) {
-                await connection.rollback();
-                return res.status(404).json({ error: 'Selected batch not found.' });
+            for (const item of itemsToProcess) {
+                const pId = item.product_id;
+                const bId = item.batch_id;
+                const qty = parseInt(item.quantity);
+
+                if (!pId || !bId || !qty || qty <= 0) {
+                    await connection.rollback();
+                    return res.status(400).json({ error: 'Valid Product ID, Batch ID, and Quantity required for all items.' });
+                }
+
+                // Lock & Verify batch available stock (Stock Guard Protection)
+                const [batchRows] = await connection.query(`
+                    SELECT id, available_qty, selling_price, batch_discount_percent 
+                    FROM product_batches 
+                    WHERE id = ? FOR UPDATE
+                `, [bId]);
+
+                if (batchRows.length === 0) {
+                    await connection.rollback();
+                    return res.status(404).json({ error: `Batch ID ${bId} not found in database.` });
+                }
+
+                const batch = batchRows[0];
+                if (batch.available_qty < qty) {
+                    await connection.rollback();
+                    return res.status(400).json({ 
+                        error: `Insufficient stock in selected batch! Requested: ${qty}, Available: ${batch.available_qty}` 
+                    });
+                }
+
+                // Deduct from batch
+                await connection.query(`
+                    UPDATE product_batches 
+                    SET available_qty = available_qty - ? 
+                    WHERE id = ?
+                `, [qty, bId]);
+
+                const price = item.unit_price !== undefined ? parseFloat(item.unit_price) : parseFloat(batch.selling_price);
+                const disc = item.discount_amount ? parseFloat(item.discount_amount) : 0;
+                const tax = item.tax_amount ? parseFloat(item.tax_amount) : 0;
+                const total = parseFloat(((qty * price) - disc + tax).toFixed(2));
+                const txnNumber = `TXN-OUT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+                await connection.query(`
+                    INSERT INTO transactions 
+                    (txn_number, txn_type, product_id, batch_id, quantity, unit_price, discount_amount, tax_amount, total_amount, customer_name, dept_name, invoice_ref, remarks, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    txnNumber, type, pId, bId, -qty, price, disc, tax, total,
+                    customer_name || null, dept_name || null, billNumber,
+                    remarks || `Stock Out (${type})`, user
+                ]);
+
+                processedTxns.push({ txnNumber, productId: pId, batchId: bId, remainingQty: batch.available_qty - qty });
             }
-
-            const batch = batchRows[0];
-            if (batch.available_qty < qty) {
-                await connection.rollback();
-                return res.status(400).json({ 
-                    error: `Insufficient stock in selected batch! Requested: ${qty}, Available: ${batch.available_qty}` 
-                });
-            }
-
-            // Deduct from batch
-            await connection.query(`
-                UPDATE product_batches 
-                SET available_qty = available_qty - ? 
-                WHERE id = ?
-            `, [qty, batch_id]);
-
-            // Calculate totals
-            const type = txn_type || 'SALE';
-            const price = unit_price !== undefined ? parseFloat(unit_price) : parseFloat(batch.selling_price);
-            const disc = discount_amount ? parseFloat(discount_amount) : 0;
-            const tax = tax_amount ? parseFloat(tax_amount) : 0;
-            const total = parseFloat(((qty * price) - disc + tax).toFixed(2));
-            const txnNumber = `TXN-OUT-${Date.now()}`;
-            const user = user_id || 1;
-
-            // Record transaction
-            await connection.query(`
-                INSERT INTO transactions 
-                (txn_number, txn_type, product_id, batch_id, quantity, unit_price, discount_amount, tax_amount, total_amount, customer_name, dept_name, invoice_ref, remarks, user_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-                txnNumber, type, product_id, batch_id, -qty, price, disc, tax, total,
-                customer_name || null, dept_name || null, invoice_ref || `BILL-${Date.now().toString().slice(-6)}`,
-                remarks || `Stock Out (${type})`, user
-            ]);
 
             await connection.commit();
             return res.status(201).json({ 
-                message: 'Stock Out processed successfully!', 
-                txnNumber, 
-                remainingQty: batch.available_qty - qty 
+                message: 'Stock Out Bill processed successfully!', 
+                billNumber, 
+                processedTxns 
             });
         } catch (dbErr) {
             if (connection) {
@@ -91,63 +112,67 @@ async function processStockOut(req, res) {
             }
 
             // Fallback Stock Guard validation in central mock store
-            const productBatches = getBatchesForProduct(product_id);
-            let targetBatch = productBatches.find(b => b.id == batch_id) || productBatches[0];
+            for (const item of itemsToProcess) {
+                const pId = item.product_id;
+                const bId = item.batch_id;
+                const qty = parseInt(item.quantity);
 
-            if (!targetBatch) {
-                targetBatch = {
-                    id: batch_id || Date.now(),
-                    batch_number: 'BATCH-AUTO',
-                    available_qty: 100,
-                    selling_price: parseFloat(unit_price) || 50
-                };
-                const pId = product_id || 1;
-                if (!mockBatches[pId]) mockBatches[pId] = [];
-                mockBatches[pId].push(targetBatch);
-            }
+                const productBatches = getBatchesForProduct(pId);
+                let targetBatch = productBatches.find(b => b.id == bId) || productBatches[0];
 
-            if (targetBatch.available_qty < qty) {
-                return res.status(400).json({
-                    error: `Insufficient stock in selected batch! Requested: ${qty}, Available: ${targetBatch.available_qty}`
+                if (!targetBatch) {
+                    targetBatch = {
+                        id: bId || Date.now(),
+                        batch_number: 'BATCH-AUTO',
+                        available_qty: 100,
+                        selling_price: parseFloat(item.unit_price) || 50
+                    };
+                    if (!mockBatches[pId]) mockBatches[pId] = [];
+                    mockBatches[pId].push(targetBatch);
+                }
+
+                if (targetBatch.available_qty < qty) {
+                    return res.status(400).json({
+                        error: `Insufficient stock in selected batch! Requested: ${qty}, Available: ${targetBatch.available_qty}`
+                    });
+                }
+
+                targetBatch.available_qty -= qty;
+
+                const targetProd = mockProducts.find(p => p.id == pId);
+                if (targetProd) {
+                    targetProd.total_stock = getProductTotalStock(targetProd.id);
+                }
+
+                const price = item.unit_price !== undefined ? parseFloat(item.unit_price) : parseFloat(targetBatch.selling_price);
+                const disc = item.discount_amount ? parseFloat(item.discount_amount) : 0;
+                const tax = item.tax_amount ? parseFloat(item.tax_amount) : 0;
+                const total = parseFloat(((qty * price) - disc + tax).toFixed(2));
+                const txnNo = `TXN-OUT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+                addMockTransaction({
+                    txn_number: txnNo,
+                    txn_type: type,
+                    product_id: targetProd ? targetProd.id : pId,
+                    product_title: targetProd ? targetProd.title : 'Product Item',
+                    product_sku: targetProd ? targetProd.sku : 'SKU-ITEM',
+                    batch_number: targetBatch.batch_number,
+                    quantity: -qty,
+                    unit_price: price,
+                    discount_amount: disc,
+                    tax_amount: tax,
+                    total_amount: total,
+                    customer_name: customer_name || 'Walk-in Customer',
+                    dept_name: dept_name || null,
+                    invoice_ref: billNumber,
+                    user_name: 'Inventory Clerk'
                 });
             }
 
-            targetBatch.available_qty -= qty;
-
-            const targetProd = mockProducts.find(p => p.id == product_id);
-            if (targetProd) {
-                targetProd.total_stock = getProductTotalStock(targetProd.id);
-            }
-
-            const type = txn_type || 'SALE';
-            const price = unit_price !== undefined ? parseFloat(unit_price) : parseFloat(targetBatch.selling_price);
-            const disc = discount_amount ? parseFloat(discount_amount) : 0;
-            const tax = tax_amount ? parseFloat(tax_amount) : 0;
-            const total = parseFloat(((qty * price) - disc + tax).toFixed(2));
-            const txnNo = `TXN-OUT-${Date.now()}`;
-
-            addMockTransaction({
-                txn_number: txnNo,
-                txn_type: type,
-                product_id: targetProd ? targetProd.id : product_id,
-                product_title: targetProd ? targetProd.title : 'Product Item',
-                product_sku: targetProd ? targetProd.sku : 'SKU-ITEM',
-                batch_number: targetBatch.batch_number,
-                quantity: -qty,
-                unit_price: price,
-                discount_amount: disc,
-                tax_amount: tax,
-                total_amount: total,
-                customer_name: customer_name || 'Walk-in Customer',
-                dept_name: dept_name || null,
-                invoice_ref: invoice_ref || `BILL-${Date.now().toString().slice(-6)}`,
-                user_name: 'Inventory Clerk'
-            });
-
             return res.status(201).json({
-                message: 'Stock Out processed successfully!',
-                txnNumber: txnNo,
-                remainingQty: targetBatch.available_qty
+                message: 'Stock Out Bill processed successfully!',
+                billNumber,
+                itemCount: itemsToProcess.length
             });
         }
     } catch (err) {

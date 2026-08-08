@@ -41,9 +41,9 @@ async function getTransactions(req, res) {
         }
 
         if (search) {
-            query += ` AND (p.title LIKE ? OR p.sku LIKE ? OR b.batch_number LIKE ? OR t.txn_number LIKE ? OR t.customer_name LIKE ?)`;
+            query += ` AND (p.title LIKE ? OR p.sku LIKE ? OR b.batch_number LIKE ? OR t.txn_number LIKE ? OR t.invoice_ref LIKE ? OR t.customer_name LIKE ?)`;
             const term = `%${search}%`;
-            params.push(term, term, term, term, term);
+            params.push(term, term, term, term, term, term);
         }
 
         query += ` ORDER BY t.txn_date DESC LIMIT ?`;
@@ -86,6 +86,7 @@ async function getTransactions(req, res) {
                 (t.product_sku || '').toLowerCase().includes(s) ||
                 (t.batch_number || '').toLowerCase().includes(s) ||
                 (t.txn_number || '').toLowerCase().includes(s) ||
+                (t.invoice_ref || '').toLowerCase().includes(s) ||
                 (t.customer_name || '').toLowerCase().includes(s) ||
                 (t.supplier_name || '').toLowerCase().includes(s)
             );

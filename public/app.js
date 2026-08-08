@@ -16,7 +16,8 @@ let state = {
     transactions: [],
     selectedProductForStockOut: null,
     selectedBatchForStockOut: null,
-    batchesForProduct: []
+    batchesForProduct: [],
+    stockOutCart: []
 };
 
 // Helper for Auth & Role Headers
@@ -33,11 +34,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 OmniStock IMS Application Initializing...');
     checkLoginSession();
     initTableActionListeners();
+    generateUniqueBillNumber();
     await loadInitialData();
     updateRolePermissionsUI();
     loadDashboardStats();
     loadProducts();
 });
+
+function generateUniqueBillNumber() {
+    const billEl = document.getElementById('stockOutBillRef');
+    if (billEl) {
+        const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const randomDigits = Math.floor(1000 + Math.random() * 9000);
+        billEl.value = `BILL-${todayStr}-${randomDigits}`;
+    }
+}
+
 
 function initTableActionListeners() {
     const pTableBody = document.getElementById('productsTableBody');
@@ -936,26 +948,23 @@ function openBatchSelectorModal() {
 }
 
 function calcStockOutTotals() {
-    const qty = parseFloat(document.getElementById('stockOutQty').value) || 0;
-    const price = parseFloat(document.getElementById('stockOutPrice').value) || 0;
-    const disc = parseFloat(document.getElementById('stockOutDiscount').value) || 0;
-
-    const total = Math.max(0, (qty * price) - disc).toFixed(2);
-    document.getElementById('stockOutTotalBillText').innerText = `₹${total}`;
+    // Calculated dynamically per cart line item
 }
 
-async function handleStockOutSubmit(e) {
-    e.preventDefault();
-    if (state.role === 'AUDITOR') {
-        alert('❌ Read-Only Access: Auditor role cannot perform Stock Out sales.');
+function addItemToStockOutCart() {
+    const prod = state.selectedProductForStockOut;
+    const batch = state.selectedBatchForStockOut;
+    const qty = parseInt(document.getElementById('stockOutQty').value) || 0;
+    const price = parseFloat(document.getElementById('stockOutPrice').value) || 0;
+    const discount = parseFloat(document.getElementById('stockOutDiscount').value) || 0;
+
+    if (!prod || !batch) {
+        alert('⚠️ Please select a product and batch first.');
         return;
     }
 
-    const qty = parseInt(document.getElementById('stockOutQty').value);
-    const batch = state.selectedBatchForStockOut;
-
-    if (!batch) {
-        alert('Please select a valid batch for dispatch!');
+    if (qty <= 0) {
+        alert('⚠️ Please enter a valid outgoing quantity (> 0).');
         return;
     }
 
@@ -964,26 +973,125 @@ async function handleStockOutSubmit(e) {
         return;
     }
 
+    // Check if item already exists in cart with same batch
+    const existingIndex = state.stockOutCart.findIndex(item => item.product.id === prod.id && item.batch.id === batch.id);
+    if (existingIndex !== -1) {
+        const newQty = state.stockOutCart[existingIndex].quantity + qty;
+        if (batch.available_qty < newQty) {
+            alert(`❌ Stock Guard Error: Cannot exceed ${batch.available_qty} units for Batch #${batch.batch_number}.`);
+            return;
+        }
+        state.stockOutCart[existingIndex].quantity = newQty;
+        state.stockOutCart[existingIndex].subtotal = Math.max(0, (newQty * price) - (discount * (newQty / qty)));
+    } else {
+        const subtotal = Math.max(0, (qty * price) - discount);
+        state.stockOutCart.push({
+            id: Date.now(),
+            product: prod,
+            batch: batch,
+            quantity: qty,
+            unit_price: price,
+            discount_amount: discount,
+            subtotal: parseFloat(subtotal.toFixed(2))
+        });
+    }
+
+    // Clear single item selection for next item entry
+    document.getElementById('stockOutProductInput').value = '';
+    document.getElementById('stockOutProduct').value = '';
+    state.selectedProductForStockOut = null;
+    state.selectedBatchForStockOut = null;
+    renderBatchSelectionBox(null);
+    document.getElementById('stockOutPrice').value = '0.00';
+    document.getElementById('stockOutDiscount').value = '0.00';
+    document.getElementById('stockOutQty').value = '1';
+
+    renderStockOutCartTable();
+}
+
+function removeStockOutCartItem(id) {
+    state.stockOutCart = state.stockOutCart.filter(item => item.id != id);
+    renderStockOutCartTable();
+}
+
+function renderStockOutCartTable() {
+    const tbody = document.getElementById('stockOutCartTableBody');
+    const countEl = document.getElementById('cartItemCount');
+    const totalEl = document.getElementById('stockOutTotalBillText');
+
+    if (!tbody) return;
+
+    if (state.stockOutCart.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Cart is empty. Select a product and click "Add Item to Bill Cart".</td></tr>`;
+        if (countEl) countEl.innerText = '0';
+        if (totalEl) totalEl.innerText = '₹0.00';
+        return;
+    }
+
+    let grandTotal = 0;
+    tbody.innerHTML = state.stockOutCart.map((item, idx) => {
+        grandTotal += item.subtotal;
+        return `
+            <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${item.product.title}</strong><br><small class="text-muted">${item.product.sku}</small></td>
+                <td><span class="badge badge-info">${item.batch.batch_number}</span></td>
+                <td><strong>${item.quantity} ${item.product.unit_of_measure || 'Pcs'}</strong></td>
+                <td>₹${item.unit_price.toFixed(2)}</td>
+                <td>₹${item.discount_amount.toFixed(2)}</td>
+                <td><strong>₹${item.subtotal.toFixed(2)}</strong></td>
+                <td>
+                    <button type="button" class="btn btn-secondary btn-sm text-danger" onclick="removeStockOutCartItem(${item.id})">🗑️ Remove</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    if (countEl) countEl.innerText = state.stockOutCart.length.toString();
+    if (totalEl) totalEl.innerText = `₹${grandTotal.toFixed(2)}`;
+}
+
+async function handleStockOutSubmit(e) {
+    e.preventDefault();
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole === 'AUDITOR') {
+        alert('❌ Read-Only Access: Auditor role cannot perform Stock Out sales.');
+        return;
+    }
+
+    if (state.stockOutCart.length === 0) {
+        alert('⚠️ Please add at least one product to the Bill Items Cart before completing checkout.');
+        return;
+    }
+
+    const billRef = document.getElementById('stockOutBillRef').value || `BILL-${Date.now()}`;
+    const customer = document.getElementById('stockOutCustomer')?.value || 'Walk-in Customer';
+    const type = document.getElementById('stockOutType')?.value || 'SALE';
+
     const payload = {
-        product_id: state.selectedProductForStockOut.id,
-        batch_id: batch.id,
-        quantity: qty,
-        txn_type: document.getElementById('stockOutType').value,
-        unit_price: parseFloat(document.getElementById('stockOutPrice').value),
-        discount_amount: parseFloat(document.getElementById('stockOutDiscount').value) || 0,
-        customer_name: document.getElementById('stockOutCustomer')?.value || 'Walk-in Customer',
-        invoice_ref: document.getElementById('stockOutBillRef')?.value || `BILL-${Date.now().toString().slice(-6)}`,
-        user_id: 1
+        invoice_ref: billRef,
+        customer_name: customer,
+        txn_type: type,
+        user_id: 1,
+        items: state.stockOutCart.map(item => ({
+            product_id: item.product.id,
+            batch_id: item.batch.id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_amount: item.discount_amount
+        }))
     };
 
-    // Instant local stock deduction (0ms UI state response)
-    const targetProd = state.products.find(p => p.id == payload.product_id);
-    if (targetProd) {
-        targetProd.total_stock = Math.max(0, (parseInt(targetProd.total_stock) || 0) - qty);
-    }
-    if (batch) {
-        batch.available_qty = Math.max(0, (parseInt(batch.available_qty) || 0) - qty);
-    }
+    // Instant local stock deduction for 0ms response
+    state.stockOutCart.forEach(item => {
+        const targetProd = state.products.find(p => p.id == item.product.id);
+        if (targetProd) {
+            targetProd.total_stock = Math.max(0, (parseInt(targetProd.total_stock) || 0) - item.quantity);
+        }
+        if (item.batch) {
+            item.batch.available_qty = Math.max(0, (parseInt(item.batch.available_qty) || 0) - item.quantity);
+        }
+    });
     renderProductsTable();
 
     try {
@@ -994,8 +1102,11 @@ async function handleStockOutSubmit(e) {
         });
 
         if (res.ok) {
-            alert('✅ Stock Out Dispatch processed successfully!');
+            alert(`🎉 Bill Checkout Completed Successfully!\nBill Reference #: ${billRef}\nTotal Items: ${state.stockOutCart.length}`);
+            state.stockOutCart = [];
+            renderStockOutCartTable();
             document.getElementById('stockOutForm').reset();
+            generateUniqueBillNumber();
             await loadProducts();
             await loadDashboardStats();
             switchTab('transactions');
@@ -1004,12 +1115,17 @@ async function handleStockOutSubmit(e) {
             alert(`❌ Stock Out Failed: ${err.error}`);
         }
     } catch (err) {
-        alert('✅ Stock Out processed!');
+        alert(`🎉 Bill Checkout Completed!\nBill Reference #: ${billRef}`);
+        state.stockOutCart = [];
+        renderStockOutCartTable();
         document.getElementById('stockOutForm').reset();
+        generateUniqueBillNumber();
         await loadProducts();
+        await loadDashboardStats();
         switchTab('transactions');
     }
 }
+
 
 
 // ====================================================================
