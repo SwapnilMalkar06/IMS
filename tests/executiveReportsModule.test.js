@@ -56,13 +56,14 @@ async function runExecutiveReportsTest() {
         hostname: 'localhost', port: 3000, path: '/api/reports/sales-velocity', method: 'GET', headers: authHeaders
     });
 
-    if (velocityRes.statusCode === 200 && Array.isArray(velocityRes.body)) {
-        console.log(`  ✅ PASS: Sales Velocity Report returned ${velocityRes.body.length} product turnover item(s)!`);
+    if (velocityRes.statusCode === 200 && velocityRes.body && Array.isArray(velocityRes.body.products) && Array.isArray(velocityRes.body.categories)) {
+        console.log(`  ✅ PASS: Sales Velocity Report returned ${velocityRes.body.categories.length} category summary item(s) & ${velocityRes.body.products.length} product drill-down item(s)!`);
         passed++;
     } else {
         console.log(`  ❌ FAIL: Sales Velocity Report returned status ${velocityRes.statusCode}`, velocityRes.body);
         failed++;
     }
+
 
     // 3. Query Inventory Asset Valuation Endpoint
     console.log(`\n📌 STEP 3: Querying Inventory Asset Valuation Report (/api/reports/inventory-valuation)...`);

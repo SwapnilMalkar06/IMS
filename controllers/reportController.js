@@ -201,13 +201,13 @@ async function getSalesReport(req, res) {
 }
 
 
-// Report 2: Sales Velocity (Fast vs Slow Moving Items & Dead Stock)
+// Report 2: Sales Velocity (Fast vs Slow Moving Items & Dead Stock - Scalable Category & Product Drill-down)
 async function getSalesVelocityReport(req, res) {
     try {
-        const [rows] = await db.query(`
+        const [productRows] = await db.query(`
             SELECT 
                 p.id, p.sku, p.title, p.min_reorder_level, p.unit_of_measure,
-                c.name AS category_name,
+                COALESCE(c.name, 'General Merchandise') AS category_name,
                 COALESCE(SUM(b.available_qty), 0) AS current_stock,
                 COALESCE(sales.total_sold, 0) AS total_units_sold,
                 COALESCE(sales.total_revenue, 0) AS total_revenue,
@@ -227,15 +227,43 @@ async function getSalesVelocityReport(req, res) {
             ORDER BY total_units_sold DESC
         `);
 
-        return res.json(rows);
+        const [categoryRows] = await db.query(`
+            SELECT 
+                COALESCE(c.name, 'General Merchandise') AS category_name,
+                COUNT(DISTINCT p.id) AS total_products,
+                COALESCE(SUM(b.available_qty), 0) AS total_stock,
+                COALESCE(SUM(sales.total_sold), 0) AS total_units_sold,
+                COALESCE(SUM(sales.total_revenue), 0) AS total_revenue,
+                SUM(CASE WHEN COALESCE(sales.total_sold, 0) >= 10 THEN 1 ELSE 0 END) AS fast_products_count,
+                SUM(CASE WHEN COALESCE(sales.total_sold, 0) = 0 THEN 1 ELSE 0 END) AS dead_products_count
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN product_batches b ON p.id = b.product_id
+            LEFT JOIN (
+                SELECT product_id, SUM(quantity) AS total_sold, SUM(total_amount) AS total_revenue
+                FROM transactions WHERE txn_type = 'SALE' GROUP BY product_id
+            ) sales ON p.id = sales.product_id
+            GROUP BY c.id, c.name
+            ORDER BY total_units_sold DESC
+        `);
+
+        return res.json({ products: productRows, categories: categoryRows });
     } catch (err) {
-        return res.json([
-            { id: 1, sku: 'PHARM-5001', title: 'Paracetamol 500mg Tablets (Box of 100)', category_name: 'Pharmaceuticals', current_stock: 12, total_units_sold: 45, total_revenue: 675.00, velocity_status: 'FAST_MOVING' },
-            { id: 2, sku: 'GROC-1002', title: 'Organic Whole Milk 1L', category_name: 'Packaged Foods & Dairy', current_stock: 35, total_units_sold: 18, total_revenue: 61.20, velocity_status: 'MODERATE_MOVING' },
-            { id: 3, sku: 'ELEC-3001', title: 'Wireless Ergonomic Optical Mouse', category_name: 'Consumer Electronics', current_stock: 15, total_units_sold: 0, total_revenue: 0.00, velocity_status: 'SLOW_DEAD_STOCK' }
-        ]);
+        return res.json({
+            products: [
+                { id: 1, sku: 'PHARM-5001', title: 'Paracetamol 500mg Tablets (Box of 100)', category_name: 'Pharmaceuticals', current_stock: 12, total_units_sold: 45, total_revenue: 675.00, velocity_status: 'FAST_MOVING' },
+                { id: 2, sku: 'GROC-1002', title: 'Organic Whole Milk 1L', category_name: 'Packaged Foods & Dairy', current_stock: 35, total_units_sold: 18, total_revenue: 61.20, velocity_status: 'MODERATE_MOVING' },
+                { id: 3, sku: 'ELEC-3001', title: 'Wireless Ergonomic Optical Mouse', category_name: 'Consumer Electronics', current_stock: 15, total_units_sold: 0, total_revenue: 0.00, velocity_status: 'SLOW_DEAD_STOCK' }
+            ],
+            categories: [
+                { category_name: 'Pharmaceuticals', total_products: 3, total_stock: 45, total_units_sold: 45, total_revenue: 675.00, fast_products_count: 2, dead_products_count: 0 },
+                { category_name: 'Packaged Foods & Dairy', total_products: 2, total_stock: 35, total_units_sold: 18, total_revenue: 61.20, fast_products_count: 1, dead_products_count: 0 },
+                { category_name: 'Consumer Electronics', total_products: 2, total_stock: 25, total_units_sold: 0, total_revenue: 0.00, fast_products_count: 0, dead_products_count: 2 }
+            ]
+        });
     }
 }
+
 
 // Report 3: Asset Inventory Valuation Report
 async function getInventoryValuationReport(req, res) {

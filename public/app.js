@@ -1509,67 +1509,132 @@ async function loadActiveReport() {
         } catch (e) {}
 
     } else if (subTab === 'velocity') {
-        if (tableTitle) tableTitle.innerText = '⚡ Fast-Moving vs Slow-Moving / Dead Stock Items';
+        const statusFilter = state.velocityFilterStatus || 'ALL';
+        const selectedCat = state.velocitySelectedCategory;
+
         try {
             const res = await fetch(`${API_BASE}/reports/sales-velocity`, { headers: getAuthHeaders() });
             const data = await res.json();
-            state.reportDataset = data;
+            const products = data.products || [];
+            const categories = data.categories || [];
+            state.reportDataset = products;
 
-            const fastCount = data.filter(d => d.velocity_status === 'FAST_MOVING').length;
-            const deadCount = data.filter(d => d.velocity_status === 'SLOW_DEAD_STOCK').length;
+            // Stat Cards calculation
+            const fastProds = products.filter(d => d.velocity_status === 'FAST_MOVING');
+            const deadProds = products.filter(d => d.velocity_status === 'SLOW_DEAD_STOCK');
+
+            const isFastActive = statusFilter === 'FAST_MOVING' ? 'border: 2px solid #10b981; transform: scale(1.02);' : '';
+            const isDeadActive = statusFilter === 'SLOW_DEAD_STOCK' ? 'border: 2px solid #ef4444; transform: scale(1.02);' : '';
+            const isAllActive = statusFilter === 'ALL' ? 'border: 2px solid #3b82f6; transform: scale(1.02);' : '';
 
             if (kpiGrid) {
                 kpiGrid.innerHTML = `
-                    <div class="kpi-card green-border">
-                        <div class="kpi-header"><span class="kpi-title">Fast-Moving Winners</span><span class="kpi-icon">⚡</span></div>
-                        <div class="kpi-value">${fastCount}</div>
-                        <div class="kpi-sub">High demand products</div>
+                    <div class="kpi-card green-border" onclick="filterVelocityStatus('FAST_MOVING')" style="cursor: pointer; ${isFastActive}" title="Click to view High-Demand Categories">
+                        <div class="kpi-header"><span class="kpi-title">High Demand Winners</span><span class="kpi-icon">⚡</span></div>
+                        <div class="kpi-value" style="color: #10b981;">${fastProds.length} Products</div>
+                        <div class="kpi-sub">Click to view High Demand Categories 🔍</div>
                     </div>
-                    <div class="kpi-card danger-border">
-                        <div class="kpi-header"><span class="kpi-title">Slow / Dead Stock</span><span class="kpi-icon">🛑</span></div>
-                        <div class="kpi-value">${deadCount}</div>
-                        <div class="kpi-sub">Occupying warehouse space</div>
+                    <div class="kpi-card danger-border" onclick="filterVelocityStatus('SLOW_DEAD_STOCK')" style="cursor: pointer; ${isDeadActive}" title="Click to view Low Demand Categories">
+                        <div class="kpi-header"><span class="kpi-title">Low Demand / Dead Stock</span><span class="kpi-icon">🛑</span></div>
+                        <div class="kpi-value" style="color: #ef4444;">${deadProds.length} Products</div>
+                        <div class="kpi-sub">Click to view Low Demand Categories 🔍</div>
+                    </div>
+                    <div class="kpi-card blue-border" onclick="filterVelocityStatus('ALL')" style="cursor: pointer; ${isAllActive}" title="Click to view All Stock Categories">
+                        <div class="kpi-header"><span class="kpi-title">All Catalog Items</span><span class="kpi-icon">📦</span></div>
+                        <div class="kpi-value">${products.length} Products</div>
+                        <div class="kpi-sub">Click to view All Categories 🔍</div>
                     </div>
                 `;
             }
 
-            if (tableHead) {
-                tableHead.innerHTML = `
-                    <tr>
-                        <th>Product Title</th>
-                        <th>Category</th>
-                        <th>Current Stock</th>
-                        <th>Units Sold</th>
-                        <th>Total Revenue</th>
-                        <th>Turnover Velocity</th>
-                    </tr>
-                `;
-            }
+            // LEVEL 1: CATEGORIES VIEW vs LEVEL 2: PRODUCTS DRILL-DOWN VIEW
+            if (!selectedCat) {
+                // LEVEL 1: CATEGORIES VIEW
+                if (tableTitle) {
+                    const statusText = statusFilter === 'FAST_MOVING' ? '⚡ High-Demand Categories' : (statusFilter === 'SLOW_DEAD_STOCK' ? '🛑 Low-Demand / Dead Stock Categories' : '📊 All Categories Velocity Overview');
+                    tableTitle.innerHTML = `${statusText} <small class="text-muted" style="font-size: 13px;">(Click any category to drill down to products)</small>`;
+                }
 
-            let list = [...data];
-            if (search) list = list.filter(i => (i.title || '').toLowerCase().includes(search.toLowerCase()));
-
-            if (tbody) {
-                tbody.innerHTML = list.map(i => {
-                    let badge = '<span class="badge badge-info">MODERATE</span>';
-                    if (i.velocity_status === 'FAST_MOVING') badge = '<span class="badge badge-success">⚡ FAST MOVING</span>';
-                    else if (i.velocity_status === 'SLOW_DEAD_STOCK') badge = '<span class="badge badge-danger">🛑 DEAD STOCK</span>';
-
-                    return `
+                if (tableHead) {
+                    tableHead.innerHTML = `
                         <tr>
-                            <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku}</small></td>
-                            <td>${i.category_name || 'General'}</td>
-                            <td><strong>${i.current_stock} ${i.unit_of_measure || 'Pcs'}</strong></td>
-                            <td><strong>${i.total_units_sold} Pcs</strong></td>
-                            <td>₹${parseFloat(i.total_revenue || 0).toFixed(2)}</td>
-                            <td>${badge}</td>
+                            <th>Category Name</th>
+                            <th>Total Catalog SKUs</th>
+                            <th>Total Stock On Hand</th>
+                            <th>Units Sold (Demand Volume)</th>
+                            <th>Total Category Revenue</th>
+                            <th>Action (Drill-Down)</th>
                         </tr>
                     `;
-                }).join('');
+                }
+
+                let catList = [...categories];
+                if (search) catList = catList.filter(c => (c.category_name || '').toLowerCase().includes(search.toLowerCase()));
+
+                if (tbody) {
+                    tbody.innerHTML = catList.map(c => `
+                        <tr>
+                            <td><strong style="font-size: 1rem; color: #ffffff;">${c.category_name}</strong></td>
+                            <td><strong>${c.total_products} SKUs</strong></td>
+                            <td>${c.total_stock} Pcs</td>
+                            <td><strong style="color: #38bdf8;">${c.total_units_sold} Pcs Sold</strong></td>
+                            <td><strong style="color: #10b981;">₹${parseFloat(c.total_revenue || 0).toFixed(2)}</strong></td>
+                            <td>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectVelocityCategory('${c.category_name.replace(/'/g, "\\'")}')">🔍 View Products →</button>
+                            </td>
+                        </tr>
+                    `).join('') || `<tr><td colspan="6" class="text-center text-muted">No categories match the filter criteria.</td></tr>`;
+                }
+            } else {
+                // LEVEL 2: PRODUCT DRILL-DOWN VIEW FOR SELECTED CATEGORY
+                if (tableTitle) {
+                    tableTitle.innerHTML = `📦 Products in Category: <strong>${selectedCat}</strong> <button class="btn btn-secondary btn-sm" onclick="resetVelocityCategoryFilter()" style="margin-left: 12px;">⬅️ Back to Categories List</button>`;
+                }
+
+                if (tableHead) {
+                    tableHead.innerHTML = `
+                        <tr>
+                            <th>Product Title (SKU)</th>
+                            <th>Category</th>
+                            <th>Current Stock</th>
+                            <th>Units Sold</th>
+                            <th>Total Revenue</th>
+                            <th>Demand Velocity Status</th>
+                        </tr>
+                    `;
+                }
+
+                let prodList = products.filter(p => p.category_name === selectedCat);
+                if (statusFilter !== 'ALL') {
+                    prodList = prodList.filter(p => p.velocity_status === statusFilter);
+                }
+                if (search) {
+                    prodList = prodList.filter(p => (p.title || '').toLowerCase().includes(search.toLowerCase()) || (p.sku || '').toLowerCase().includes(search.toLowerCase()));
+                }
+
+                if (tbody) {
+                    tbody.innerHTML = prodList.map(i => {
+                        let badge = '<span class="badge badge-info">MODERATE</span>';
+                        if (i.velocity_status === 'FAST_MOVING') badge = '<span class="badge badge-success">⚡ FAST MOVING</span>';
+                        else if (i.velocity_status === 'SLOW_DEAD_STOCK') badge = '<span class="badge badge-danger">🛑 DEAD STOCK</span>';
+
+                        return `
+                            <tr>
+                                <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku}</small></td>
+                                <td>${i.category_name}</td>
+                                <td><strong>${i.current_stock} ${i.unit_of_measure || 'Pcs'}</strong></td>
+                                <td><strong style="color: #38bdf8;">${i.total_units_sold} Pcs</strong></td>
+                                <td>₹${parseFloat(i.total_revenue || 0).toFixed(2)}</td>
+                                <td>${badge}</td>
+                            </tr>
+                        `;
+                    }).join('') || `<tr><td colspan="6" class="text-center text-muted">No products found in category "${selectedCat}".</td></tr>`;
+                }
             }
 
-            renderReportCharts('velocity', list);
+            renderReportCharts('velocity', { products, categories });
         } catch (e) {}
+
     } else if (subTab === 'valuation') {
         if (tableTitle) tableTitle.innerText = '📦 Total Inventory Asset Valuation';
         try {
@@ -1698,33 +1763,34 @@ function renderReportCharts(type, data) {
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
-    }
- else if (type === 'velocity') {
-        if (chart1Title) chart1Title.innerText = '⚡ Product Turnover Velocity (Units Sold)';
-        if (chart2Title) chart2Title.innerText = '🛑 Current Warehouse Stock Allocation';
+    } else if (type === 'velocity') {
+        const categories = (data && data.categories) ? data.categories : [];
+        if (chart1Title) chart1Title.innerText = '📈 Category Turnover Velocity (Total Units Sold)';
+        if (chart2Title) chart2Title.innerText = '🍩 Warehouse Stock Allocation Share (%) by Category';
 
-        const labels = data.slice(0, 6).map(d => d.title ? d.title.slice(0, 16) + '...' : 'Item');
-        const sold = data.slice(0, 6).map(d => d.total_units_sold || 0);
-        const stock = data.slice(0, 6).map(d => d.current_stock || 0);
+        const labels = categories.map(c => c.category_name || 'Category');
+        const soldVals = categories.map(c => c.total_units_sold || 0);
+        const stockVals = categories.map(c => c.total_stock || 0);
 
         state.reportCharts.c1 = new Chart(ctx1, {
             type: 'bar',
             data: {
                 labels,
-                datasets: [{ label: 'Units Sold', data: sold, backgroundColor: '#10b981', borderRadius: 6 }]
+                datasets: [{ label: 'Units Sold (Demand)', data: soldVals, backgroundColor: '#38bdf8', borderRadius: 6 }]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
 
         state.reportCharts.c2 = new Chart(ctx2, {
-            type: 'bar',
+            type: 'doughnut',
             data: {
                 labels,
-                datasets: [{ label: 'Stock On Hand', data: stock, backgroundColor: '#f59e0b', borderRadius: 6 }]
+                datasets: [{ data: stockVals, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'] }]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
     } else if (type === 'valuation') {
+
         if (chart1Title) chart1Title.innerText = '📦 Capital Investment (At Cost Price)';
         if (chart2Title) chart2Title.innerText = '💎 Expected Sales Value';
 
@@ -1777,6 +1843,23 @@ function exportReportCSV() {
 function printReportPDF() {
     window.print();
 }
+
+function filterVelocityStatus(status) {
+    state.velocityFilterStatus = status;
+    state.velocitySelectedCategory = null;
+    loadActiveReport();
+}
+
+function selectVelocityCategory(categoryName) {
+    state.velocitySelectedCategory = categoryName;
+    loadActiveReport();
+}
+
+function resetVelocityCategoryFilter() {
+    state.velocitySelectedCategory = null;
+    loadActiveReport();
+}
+
 
 
 
