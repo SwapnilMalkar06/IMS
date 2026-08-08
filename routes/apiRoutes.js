@@ -10,11 +10,21 @@ const { getProducts, createProduct, updateProduct, deleteProduct } = require('..
 const { getProductBatches } = require('../controllers/batchController');
 const { processStockIn } = require('../controllers/stockInController');
 const { processStockOut } = require('../controllers/stockOutController');
-const { getTransactions, getDashboardStats, getLowStockItems, getNearExpiryItems } = require('../controllers/reportController');
+const { 
+    getTransactions, 
+    getDashboardStats, 
+    getLowStockItems, 
+    getNearExpiryItems,
+    getSalesReport,
+    getSalesVelocityReport,
+    getInventoryValuationReport,
+    getSmartInsights
+} = require('../controllers/reportController');
 const db = require('../config/db');
 
 // Health Check
 router.get('/health', (req, res) => res.json({ status: 'online', version: '1.0.0' }));
+
 
 
 // Auth Route
@@ -54,6 +64,13 @@ router.post('/login', async (req, res) => {
 router.get('/dashboard/stats', requirePermission('READ'), getDashboardStats);
 router.get('/reports/low-stock', requirePermission('READ'), getLowStockItems);
 router.get('/reports/near-expiry', requirePermission('READ'), getNearExpiryItems);
+
+// Executive Reports & Smart Insights API Endpoints
+router.get('/reports/financial-sales', requirePermission('READ'), getSalesReport);
+router.get('/reports/sales-velocity', requirePermission('READ'), getSalesVelocityReport);
+router.get('/reports/inventory-valuation', requirePermission('READ'), getInventoryValuationReport);
+router.get('/reports/smart-insights', requirePermission('READ'), getSmartInsights);
+
 
 
 // Products Catalog Routes (Create, Read, Update, Delete)

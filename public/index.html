@@ -8,7 +8,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
 
     <!-- LOGIN OVERLAY SCREEN -->
@@ -465,24 +467,101 @@
                 </div>
             </section>
 
-            <!-- TAB 6: REPORTS -->
+            <!-- TAB 6: REPORTS & ANALYTICS -->
             <section id="tab-reports" class="tab-content">
-                <div class="page-header">
-                    <h2>Inventory & Financial Analytics</h2>
-                </div>
-                <div class="reports-grid">
-                    <div class="panel">
-                        <h3>Daily Closing Inventory Statement</h3>
-                        <p class="text-muted">Summary of daily stock movements and ending valuation.</p>
-                        <button class="btn btn-primary btn-sm" onclick="alert('Generating Daily Closing Statement PDF...')">Print Closing Report</button>
+                <div class="page-header flex-between">
+                    <div>
+                        <h2>📈 Executive Inventory & Financial Analytics</h2>
+                        <span class="text-muted">Real-time revenue metrics, stock valuation, velocity analysis, and smart recommendations</span>
                     </div>
-                    <div class="panel">
-                        <h3>Fast vs. Slow-Moving Stock</h3>
-                        <p class="text-muted">Analyzes product turnover velocity and dead inventory.</p>
-                        <button class="btn btn-secondary btn-sm" onclick="alert('Analyzing stock movement velocity...')">View Velocity Analysis</button>
+                    <div class="action-btn-group">
+                        <button class="btn btn-secondary" onclick="exportReportCSV()">📊 Export CSV Data</button>
+                        <button class="btn btn-primary" onclick="printReportPDF()">📄 Print Executive PDF</button>
+                    </div>
+                </div>
+
+                <!-- REPORT TYPES TAB NAVIGATION PILLS -->
+                <div class="report-nav-pills mt-3">
+                    <button class="report-pill active" onclick="switchReportSubTab('sales')">📈 Financial Sales</button>
+                    <button class="report-pill" onclick="switchReportSubTab('velocity')">⚡ Fast vs Slow Stock</button>
+                    <button class="report-pill" onclick="switchReportSubTab('valuation')">📦 Asset Valuation</button>
+                    <button class="report-pill" onclick="switchReportSubTab('expiry')">⌛ Expiry Risk & FEFO</button>
+                    <button class="report-pill" onclick="switchReportSubTab('supplier')">📥 Supplier Procurement</button>
+                    <button class="report-pill" onclick="switchReportSubTab('movement')">🏢 Movement & Write-offs</button>
+                </div>
+
+                <!-- FILTER BAR FOR REPORTS -->
+                <div class="filter-bar mt-3">
+                    <select id="reportPeriodSelect" class="custom-select" onchange="loadActiveReport()">
+                        <option value="THIS_MONTH" selected>This Month</option>
+                        <option value="TODAY">Today</option>
+                        <option value="THIS_WEEK">This Week</option>
+                        <option value="THIS_YEAR">This Year</option>
+                        <option value="ALL_TIME">All Time</option>
+                    </select>
+                    <input type="text" id="reportSearchInput" class="search-input" placeholder="🔍 Search report data..." onkeyup="loadActiveReport()">
+                </div>
+
+                <!-- 🤖 REAL-TIME SMART INVENTORY ADVISOR BOX -->
+                <div class="smart-insights-panel mt-3" id="smartInsightsContainer">
+                    <div class="insights-header">
+                        <h4>🤖 Real-Time Smart Inventory Advisor & Growth Conclusions</h4>
+                        <span class="badge badge-purple">AI Analytics Engine</span>
+                    </div>
+                    <div class="insights-grid" id="smartInsightsList">
+                        <div class="insight-card info-insight">
+                            <span class="insight-icon">💡</span>
+                            <div>
+                                <strong>Analyzing Live Inventory Data...</strong>
+                                <p>Generating recommendations for sales optimization and stock replenishment...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DYNAMIC KPI STATS SUMMARY ROW -->
+                <div class="kpi-grid mt-3" id="reportKpiGrid">
+                    <!-- Stat Cards rendered dynamically -->
+                </div>
+
+                <!-- INTERACTIVE CHARTS ROW -->
+                <div class="charts-grid mt-3">
+                    <div class="panel chart-panel">
+                        <h3 id="chart1Title">📈 Sales & Revenue Trend</h3>
+                        <div class="chart-container">
+                            <canvas id="reportChart1"></canvas>
+                        </div>
+                    </div>
+                    <div class="panel chart-panel">
+                        <h3 id="chart2Title">🍩 Category Distribution</h3>
+                        <div class="chart-container">
+                            <canvas id="reportChart2"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DETAILED TABULATED REPORT DATA TABLE -->
+                <div class="panel mt-4">
+                    <div class="panel-header">
+                        <h3 id="reportTableTitle">Detailed Report Breakdown Table</h3>
+                        <span class="text-muted" id="reportTableSubtitle">Showing tabulated report metrics</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead id="reportTableHead">
+                                <tr>
+                                    <th>Item / Metric</th>
+                                    <th>Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reportTableBody">
+                                <tr><td colspan="6" class="text-center">Loading report dataset...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
+
 
         </main>
     </div>

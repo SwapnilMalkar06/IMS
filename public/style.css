@@ -775,9 +775,157 @@ body {
 }
 
 .demo-btn:hover {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: var(--border-focus);
-    color: var(--accent-blue);
+    background: var(--accent-blue);
+    color: #ffffff;
+    border-color: var(--accent-blue);
+}
+
+
+/* ====================================================================
+   REPORTS & ANALYTICS DASHBOARD STYLES
+   ==================================================================== */
+.report-nav-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: rgba(15, 23, 42, 0.6);
+    padding: 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.report-pill {
+    background: rgba(30, 41, 59, 0.7);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.report-pill:hover {
+    color: #ffffff;
+    border-color: var(--accent-blue);
+    background: rgba(37, 99, 235, 0.15);
+}
+
+.report-pill.active {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: #ffffff;
+    border-color: #3b82f6;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
+/* SMART INVENTORY ADVISOR PANEL */
+.smart-insights-panel {
+    background: rgba(22, 31, 48, 0.85);
+    border: 1.5px solid rgba(147, 51, 234, 0.35);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    box-shadow: 0 8px 24px rgba(147, 51, 234, 0.12);
+}
+
+.insights-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(147, 51, 234, 0.2);
+    padding-bottom: 12px;
+}
+
+.insights-header h4 {
+    margin: 0;
+    color: #c084fc;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.insights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 14px;
+}
+
+.insight-card {
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    border-left: 4px solid var(--accent-blue);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.insight-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.insight-card.success-insight {
+    border-left-color: #10b981;
+}
+
+.insight-card.warning-insight {
+    border-left-color: #f59e0b;
+}
+
+.insight-card.danger-insight {
+    border-left-color: #ef4444;
+}
+
+.insight-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.insight-card strong {
+    display: block;
+    color: #ffffff;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+}
+
+.insight-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+/* CHARTS GRID CONTAINER */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px;
+}
+
+.chart-panel {
+    min-height: 340px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    height: 280px;
+}
+
+.flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.action-btn-group {
+    display: flex;
+    gap: 10px;
 }
 
 /* LOGGED USER PROFILE PILL IN NAVBAR */

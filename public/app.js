@@ -5,7 +5,6 @@
 
 const API_BASE = 'http://localhost:3000/api';
 
-// APP STATE
 let state = {
     domain: 'ALL',
     role: 'ADMIN',
@@ -17,8 +16,12 @@ let state = {
     selectedProductForStockOut: null,
     selectedBatchForStockOut: null,
     batchesForProduct: [],
-    stockOutCart: []
+    stockOutCart: [],
+    activeReportSubTab: 'sales',
+    reportCharts: {},
+    reportDataset: []
 };
+
 
 // Helper for Auth & Role Headers
 function getAuthHeaders() {
@@ -1235,7 +1238,9 @@ function switchTab(tabId) {
         if (tabId === 'dashboard') loadDashboardStats().catch(() => {});
         if (tabId === 'inventory') loadProducts().catch(() => {});
         if (tabId === 'transactions') loadTransactions().catch(() => {});
+        if (tabId === 'reports') loadActiveReport().catch(() => {});
     } catch (err) {
+
         console.error('Error switching tab:', err);
     }
 }
@@ -1421,5 +1426,356 @@ function clearanceProductStockOut(item) {
         onStockOutProductSelect({ id: item.product_id || item.id, title: item.product_title || item.title, sku: item.product_sku || item.sku });
     }
 }
+
+
+// ====================================================================
+// 9. EXECUTIVE REPORTS & SMART INSIGHTS LOGIC
+// ====================================================================
+function switchReportSubTab(subTab) {
+    state.activeReportSubTab = subTab;
+    document.querySelectorAll('.report-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.getAttribute('onclick').includes(`'${subTab}'`));
+    });
+    loadActiveReport();
+}
+
+async function loadActiveReport() {
+    loadSmartInsights();
+    const subTab = state.activeReportSubTab || 'sales';
+    const period = document.getElementById('reportPeriodSelect')?.value || 'THIS_MONTH';
+    const search = document.getElementById('reportSearchInput')?.value || '';
+
+    const kpiGrid = document.getElementById('reportKpiGrid');
+    const tbody = document.getElementById('reportTableBody');
+    const tableHead = document.getElementById('reportTableHead');
+    const tableTitle = document.getElementById('reportTableTitle');
+
+    if (subTab === 'sales') {
+        if (tableTitle) tableTitle.innerText = '📊 Financial Sales & Revenue Breakdown';
+        try {
+            const res = await fetch(`${API_BASE}/reports/financial-sales?period=${period}`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            const summary = data.summary || { total_bills: 0, total_units_sold: 0, gross_sales: 0, net_revenue: 0 };
+            state.reportDataset = data.items || [];
+
+            if (kpiGrid) {
+                kpiGrid.innerHTML = `
+                    <div class="kpi-card green-border">
+                        <div class="kpi-header"><span class="kpi-title">Gross Revenue</span><span class="kpi-icon">💰</span></div>
+                        <div class="kpi-value">₹${parseFloat(summary.gross_sales || 0).toFixed(2)}</div>
+                        <div class="kpi-sub">Total sales volume</div>
+                    </div>
+                    <div class="kpi-card blue-border">
+                        <div class="kpi-header"><span class="kpi-title">Completed Bills</span><span class="kpi-icon">🧾</span></div>
+                        <div class="kpi-value">${summary.total_bills || 0}</div>
+                        <div class="kpi-sub">Customer transactions</div>
+                    </div>
+                    <div class="kpi-card warning-border">
+                        <div class="kpi-header"><span class="kpi-title">Units Sold</span><span class="kpi-icon">📦</span></div>
+                        <div class="kpi-value">${summary.total_units_sold || 0}</div>
+                        <div class="kpi-sub">Total item quantity</div>
+                    </div>
+                `;
+            }
+
+            if (tableHead) {
+                tableHead.innerHTML = `
+                    <tr>
+                        <th>Product Title</th>
+                        <th>SKU</th>
+                        <th>Units Sold</th>
+                        <th>Avg Selling Price</th>
+                        <th>Total Revenue</th>
+                    </tr>
+                `;
+            }
+
+            let list = [...state.reportDataset];
+            if (search) list = list.filter(i => (i.product_title || '').toLowerCase().includes(search.toLowerCase()));
+
+            if (tbody) {
+                tbody.innerHTML = list.map(i => `
+                    <tr>
+                        <td><strong>${i.product_title}</strong></td>
+                        <td>${i.product_sku}</td>
+                        <td><strong>${i.units_sold} Pcs</strong></td>
+                        <td>₹${parseFloat(i.avg_price || 0).toFixed(2)}</td>
+                        <td><strong style="color: #10b981;">₹${parseFloat(i.revenue || 0).toFixed(2)}</strong></td>
+                    </tr>
+                `).join('') || `<tr><td colspan="5" class="text-center text-muted">No sales records found for this period.</td></tr>`;
+            }
+
+            renderReportCharts('sales', list);
+        } catch (e) {}
+    } else if (subTab === 'velocity') {
+        if (tableTitle) tableTitle.innerText = '⚡ Fast-Moving vs Slow-Moving / Dead Stock Items';
+        try {
+            const res = await fetch(`${API_BASE}/reports/sales-velocity`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            state.reportDataset = data;
+
+            const fastCount = data.filter(d => d.velocity_status === 'FAST_MOVING').length;
+            const deadCount = data.filter(d => d.velocity_status === 'SLOW_DEAD_STOCK').length;
+
+            if (kpiGrid) {
+                kpiGrid.innerHTML = `
+                    <div class="kpi-card green-border">
+                        <div class="kpi-header"><span class="kpi-title">Fast-Moving Winners</span><span class="kpi-icon">⚡</span></div>
+                        <div class="kpi-value">${fastCount}</div>
+                        <div class="kpi-sub">High demand products</div>
+                    </div>
+                    <div class="kpi-card danger-border">
+                        <div class="kpi-header"><span class="kpi-title">Slow / Dead Stock</span><span class="kpi-icon">🛑</span></div>
+                        <div class="kpi-value">${deadCount}</div>
+                        <div class="kpi-sub">Occupying warehouse space</div>
+                    </div>
+                `;
+            }
+
+            if (tableHead) {
+                tableHead.innerHTML = `
+                    <tr>
+                        <th>Product Title</th>
+                        <th>Category</th>
+                        <th>Current Stock</th>
+                        <th>Units Sold</th>
+                        <th>Total Revenue</th>
+                        <th>Turnover Velocity</th>
+                    </tr>
+                `;
+            }
+
+            let list = [...data];
+            if (search) list = list.filter(i => (i.title || '').toLowerCase().includes(search.toLowerCase()));
+
+            if (tbody) {
+                tbody.innerHTML = list.map(i => {
+                    let badge = '<span class="badge badge-info">MODERATE</span>';
+                    if (i.velocity_status === 'FAST_MOVING') badge = '<span class="badge badge-success">⚡ FAST MOVING</span>';
+                    else if (i.velocity_status === 'SLOW_DEAD_STOCK') badge = '<span class="badge badge-danger">🛑 DEAD STOCK</span>';
+
+                    return `
+                        <tr>
+                            <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku}</small></td>
+                            <td>${i.category_name || 'General'}</td>
+                            <td><strong>${i.current_stock} ${i.unit_of_measure || 'Pcs'}</strong></td>
+                            <td><strong>${i.total_units_sold} Pcs</strong></td>
+                            <td>₹${parseFloat(i.total_revenue || 0).toFixed(2)}</td>
+                            <td>${badge}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            renderReportCharts('velocity', list);
+        } catch (e) {}
+    } else if (subTab === 'valuation') {
+        if (tableTitle) tableTitle.innerText = '📦 Total Inventory Asset Valuation';
+        try {
+            const res = await fetch(`${API_BASE}/reports/inventory-valuation`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            state.reportDataset = data;
+
+            let totalCost = 0, totalSelling = 0;
+            data.forEach(d => {
+                totalCost += parseFloat(d.total_cost_value || 0);
+                totalSelling += parseFloat(d.total_selling_value || 0);
+            });
+
+            if (kpiGrid) {
+                kpiGrid.innerHTML = `
+                    <div class="kpi-card blue-border">
+                        <div class="kpi-header"><span class="kpi-title">Capital Investment (At Cost)</span><span class="kpi-icon">🏷️</span></div>
+                        <div class="kpi-value">₹${totalCost.toFixed(2)}</div>
+                        <div class="kpi-sub">Total stock purchase cost</div>
+                    </div>
+                    <div class="kpi-card green-border">
+                        <div class="kpi-header"><span class="kpi-title">Potential Value (At Sale Price)</span><span class="kpi-icon">💎</span></div>
+                        <div class="kpi-value">₹${totalSelling.toFixed(2)}</div>
+                        <div class="kpi-sub">Expected sales value</div>
+                    </div>
+                `;
+            }
+
+            if (tableHead) {
+                tableHead.innerHTML = `
+                    <tr>
+                        <th>Product Title</th>
+                        <th>Category</th>
+                        <th>Total Stock</th>
+                        <th>Cost Valuation</th>
+                        <th>Selling Valuation</th>
+                        <th>Projected Margin</th>
+                    </tr>
+                `;
+            }
+
+            let list = [...data];
+            if (search) list = list.filter(i => (i.title || '').toLowerCase().includes(search.toLowerCase()));
+
+            if (tbody) {
+                tbody.innerHTML = list.map(i => `
+                    <tr>
+                        <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku}</small></td>
+                        <td>${i.category_name || 'General'}</td>
+                        <td><strong>${i.total_stock} Pcs</strong></td>
+                        <td>₹${parseFloat(i.total_cost_value || 0).toFixed(2)}</td>
+                        <td>₹${parseFloat(i.total_selling_value || 0).toFixed(2)}</td>
+                        <td><strong style="color: #10b981;">₹${parseFloat(i.projected_margin || 0).toFixed(2)}</strong></td>
+                    </tr>
+                `).join('');
+            }
+
+            renderReportCharts('valuation', list);
+        } catch (e) {}
+    } else {
+        renderReportCharts('sales', []);
+    }
+}
+
+async function loadSmartInsights() {
+    const container = document.getElementById('smartInsightsList');
+    if (!container) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/reports/smart-insights`, { headers: getAuthHeaders() });
+        const insights = await res.json();
+
+        container.innerHTML = insights.map(ins => {
+            let cardClass = 'info-insight';
+            if (ins.type === 'SUCCESS') cardClass = 'success-insight';
+            else if (ins.type === 'WARNING') cardClass = 'warning-insight';
+            else if (ins.type === 'DANGER') cardClass = 'danger-insight';
+
+            return `
+                <div class="insight-card ${cardClass}">
+                    <span class="insight-icon">${ins.icon || '💡'}</span>
+                    <div>
+                        <strong>${ins.title}</strong>
+                        <p>${ins.description}</p>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {}
+}
+
+function renderReportCharts(type, data) {
+    if (typeof Chart === 'undefined') return;
+
+    const ctx1 = document.getElementById('reportChart1')?.getContext('2d');
+    const ctx2 = document.getElementById('reportChart2')?.getContext('2d');
+    if (!ctx1 || !ctx2) return;
+
+    if (state.reportCharts.c1) state.reportCharts.c1.destroy();
+    if (state.reportCharts.c2) state.reportCharts.c2.destroy();
+
+    const chart1Title = document.getElementById('chart1Title');
+    const chart2Title = document.getElementById('chart2Title');
+
+    if (type === 'sales') {
+        if (chart1Title) chart1Title.innerText = '📈 Product Revenue Breakdown';
+        if (chart2Title) chart2Title.innerText = '🍩 Product Sales Volume (Units)';
+
+        const labels = data.slice(0, 5).map(d => d.product_title ? d.product_title.slice(0, 18) + '...' : 'Item');
+        const revenues = data.slice(0, 5).map(d => d.revenue || 0);
+        const units = data.slice(0, 5).map(d => d.units_sold || 0);
+
+        state.reportCharts.c1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Revenue (₹)', data: revenues, backgroundColor: '#3b82f6', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
+
+        state.reportCharts.c2 = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{ data: units, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
+    } else if (type === 'velocity') {
+        if (chart1Title) chart1Title.innerText = '⚡ Product Turnover Velocity (Units Sold)';
+        if (chart2Title) chart2Title.innerText = '🛑 Current Warehouse Stock Allocation';
+
+        const labels = data.slice(0, 6).map(d => d.title ? d.title.slice(0, 16) + '...' : 'Item');
+        const sold = data.slice(0, 6).map(d => d.total_units_sold || 0);
+        const stock = data.slice(0, 6).map(d => d.current_stock || 0);
+
+        state.reportCharts.c1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Units Sold', data: sold, backgroundColor: '#10b981', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        state.reportCharts.c2 = new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Stock On Hand', data: stock, backgroundColor: '#f59e0b', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    } else if (type === 'valuation') {
+        if (chart1Title) chart1Title.innerText = '📦 Capital Investment (At Cost Price)';
+        if (chart2Title) chart2Title.innerText = '💎 Expected Sales Value';
+
+        const labels = data.slice(0, 5).map(d => d.title ? d.title.slice(0, 16) + '...' : 'Item');
+        const costVals = data.slice(0, 5).map(d => d.total_cost_value || 0);
+        const sellVals = data.slice(0, 5).map(d => d.total_selling_value || 0);
+
+        state.reportCharts.c1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Cost Value (₹)', data: costVals, backgroundColor: '#6366f1', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        state.reportCharts.c2 = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{ data: sellVals, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+}
+
+function exportReportCSV() {
+    if (!state.reportDataset || state.reportDataset.length === 0) {
+        alert('⚠️ No report dataset available to export.');
+        return;
+    }
+
+    const keys = Object.keys(state.reportDataset[0]);
+    let csv = keys.join(',') + '\n';
+
+    state.reportDataset.forEach(row => {
+        const line = keys.map(k => `"${(row[k] || '').toString().replace(/"/g, '""')}"`).join(',');
+        csv += line + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Report_${state.activeReportSubTab}_${Date.now()}.csv`;
+    a.click();
+}
+
+function printReportPDF() {
+    window.print();
+}
+
 
 
