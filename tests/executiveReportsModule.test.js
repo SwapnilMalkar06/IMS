@@ -71,13 +71,14 @@ async function runExecutiveReportsTest() {
         hostname: 'localhost', port: 3000, path: '/api/reports/inventory-valuation', method: 'GET', headers: authHeaders
     });
 
-    if (valRes.statusCode === 200 && Array.isArray(valRes.body)) {
-        console.log(`  ✅ PASS: Inventory Asset Valuation Report returned ${valRes.body.length} catalog asset item(s)!`);
+    if (valRes.statusCode === 200 && valRes.body && Array.isArray(valRes.body.categories) && Array.isArray(valRes.body.products)) {
+        console.log(`  ✅ PASS: Inventory Asset Valuation Report returned ${valRes.body.categories.length} category summary item(s) & ${valRes.body.products.length} product valuation item(s)!`);
         passed++;
     } else {
         console.log(`  ❌ FAIL: Inventory Asset Valuation Report returned status ${valRes.statusCode}`, valRes.body);
         failed++;
     }
+
 
     // 4. Query Real-Time Smart Insights Engine Endpoint
     console.log(`\n📌 STEP 4: Querying Smart Insights Recommendation Engine (/api/reports/smart-insights)...`);

@@ -1636,14 +1636,16 @@ async function loadActiveReport() {
         } catch (e) {}
 
     } else if (subTab === 'valuation') {
-        if (tableTitle) tableTitle.innerText = '📦 Total Inventory Asset Valuation by Category';
+        const selectedCat = state.valuationSelectedCategory;
         try {
             const res = await fetch(`${API_BASE}/reports/inventory-valuation`, { headers: getAuthHeaders() });
             const data = await res.json();
-            state.reportDataset = data;
+            const categories = data.categories || (Array.isArray(data) ? data : []);
+            const products = data.products || [];
+            state.reportDataset = products;
 
             let totalCost = 0, totalSelling = 0;
-            data.forEach(d => {
+            categories.forEach(d => {
                 totalCost += parseFloat(d.total_cost_value || 0);
                 totalSelling += parseFloat(d.total_selling_value || 0);
             });
@@ -1663,40 +1665,84 @@ async function loadActiveReport() {
                 `;
             }
 
-            if (tableHead) {
-                tableHead.innerHTML = `
-                    <tr>
-                        <th>Category Name</th>
-                        <th>Domain Scope</th>
-                        <th>Total SKUs</th>
-                        <th>Total Stock On Hand</th>
-                        <th>Capital Cost Valuation</th>
-                        <th>Potential Selling Valuation</th>
-                        <th>Projected Margin</th>
-                    </tr>
-                `;
+            if (!selectedCat) {
+                // LEVEL 1: CATEGORY ASSET VALUATION SUMMARY
+                if (tableTitle) tableTitle.innerHTML = '📦 Total Inventory Asset Valuation by Category <small class="text-muted" style="font-size: 13px;">(Click any category to view individual product valuations)</small>';
+
+                if (tableHead) {
+                    tableHead.innerHTML = `
+                        <tr>
+                            <th>Category Name</th>
+                            <th>Domain Scope</th>
+                            <th>Total SKUs</th>
+                            <th>Total Stock On Hand</th>
+                            <th>Capital Cost Valuation</th>
+                            <th>Potential Selling Valuation</th>
+                            <th>Projected Margin</th>
+                            <th>Action (Drill-Down)</th>
+                        </tr>
+                    `;
+                }
+
+                let catList = [...categories];
+                if (search) catList = catList.filter(i => (i.category_name || '').toLowerCase().includes(search.toLowerCase()));
+
+                if (tbody) {
+                    tbody.innerHTML = catList.map(i => `
+                        <tr>
+                            <td><strong style="font-size: 1rem; color: #ffffff;">${i.category_name || 'General'}</strong></td>
+                            <td><span class="badge badge-purple">${i.domain_type || 'GENERAL'}</span></td>
+                            <td><strong>${i.total_products || 1} SKUs</strong></td>
+                            <td><strong>${i.total_stock || 0} Pcs</strong></td>
+                            <td>₹${parseFloat(i.total_cost_value || 0).toFixed(2)}</td>
+                            <td>₹${parseFloat(i.total_selling_value || 0).toFixed(2)}</td>
+                            <td><strong style="color: #10b981;">₹${parseFloat(i.projected_margin || 0).toFixed(2)}</strong></td>
+                            <td>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectValuationCategory('${i.category_name.replace(/'/g, "\\'")}')">🔍 View Products →</button>
+                            </td>
+                        </tr>
+                    `).join('') || `<tr><td colspan="8" class="text-center text-muted">No category valuation records found.</td></tr>`;
+                }
+            } else {
+                // LEVEL 2: PRODUCT VALUATION DRILL-DOWN FOR SELECTED CATEGORY
+                if (tableTitle) {
+                    tableTitle.innerHTML = `📦 Product Asset Valuation in Category: <strong>${selectedCat}</strong> <button class="btn btn-secondary btn-sm" onclick="resetValuationCategoryFilter()" style="margin-left: 12px;">⬅️ Back to Category Valuation List</button>`;
+                }
+
+                if (tableHead) {
+                    tableHead.innerHTML = `
+                        <tr>
+                            <th>Product Title (SKU)</th>
+                            <th>Category</th>
+                            <th>Total Stock On Hand</th>
+                            <th>Capital Cost Valuation</th>
+                            <th>Potential Selling Valuation</th>
+                            <th>Projected Margin</th>
+                        </tr>
+                    `;
+                }
+
+                let prodList = products.filter(p => p.category_name === selectedCat);
+                if (search) prodList = prodList.filter(i => (i.title || '').toLowerCase().includes(search.toLowerCase()) || (i.sku || '').toLowerCase().includes(search.toLowerCase()));
+
+                if (tbody) {
+                    tbody.innerHTML = prodList.map(i => `
+                        <tr>
+                            <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku}</small></td>
+                            <td>${i.category_name}</td>
+                            <td><strong>${i.total_stock || 0} Pcs</strong></td>
+                            <td>₹${parseFloat(i.total_cost_value || 0).toFixed(2)}</td>
+                            <td>₹${parseFloat(i.total_selling_value || 0).toFixed(2)}</td>
+                            <td><strong style="color: #10b981;">₹${parseFloat(i.projected_margin || 0).toFixed(2)}</strong></td>
+                        </tr>
+                    `).join('') || `<tr><td colspan="6" class="text-center text-muted">No product valuation records found for category "${selectedCat}".</td></tr>`;
+                }
             }
 
-            let list = [...data];
-            if (search) list = list.filter(i => (i.category_name || '').toLowerCase().includes(search.toLowerCase()));
-
-            if (tbody) {
-                tbody.innerHTML = list.map(i => `
-                    <tr>
-                        <td><strong>${i.category_name || 'General'}</strong></td>
-                        <td><span class="badge badge-purple">${i.domain_type || 'GENERAL'}</span></td>
-                        <td><strong>${i.total_products || 1} SKUs</strong></td>
-                        <td><strong>${i.total_stock || 0} Pcs</strong></td>
-                        <td>₹${parseFloat(i.total_cost_value || 0).toFixed(2)}</td>
-                        <td>₹${parseFloat(i.total_selling_value || 0).toFixed(2)}</td>
-                        <td><strong style="color: #10b981;">₹${parseFloat(i.projected_margin || 0).toFixed(2)}</strong></td>
-                    </tr>
-                `).join('') || `<tr><td colspan="7" class="text-center text-muted">No valuation records found.</td></tr>`;
-            }
-
-            renderReportCharts('valuation', list);
+            renderReportCharts('valuation', categories);
         } catch (e) {}
-    } else {
+    }
+ else {
         renderReportCharts('sales', []);
     }
 }
@@ -1858,10 +1904,16 @@ function selectVelocityCategory(categoryName) {
     loadActiveReport();
 }
 
-function resetVelocityCategoryFilter() {
-    state.velocitySelectedCategory = null;
+function selectValuationCategory(categoryName) {
+    state.valuationSelectedCategory = categoryName;
     loadActiveReport();
 }
+
+function resetValuationCategoryFilter() {
+    state.valuationSelectedCategory = null;
+    loadActiveReport();
+}
+
 
 
 

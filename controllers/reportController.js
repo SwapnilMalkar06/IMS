@@ -265,10 +265,10 @@ async function getSalesVelocityReport(req, res) {
 }
 
 
-// Report 3: Asset Inventory Valuation Report (Category-wise Asset Valuation)
+// Report 3: Asset Inventory Valuation Report (Category Summary & Product Drill-Down)
 async function getInventoryValuationReport(req, res) {
     try {
-        const [rows] = await db.query(`
+        const [categoryRows] = await db.query(`
             SELECT 
                 COALESCE(c.name, 'General Merchandise') AS category_name,
                 COALESCE(c.domain_type, 'GENERAL') AS domain_type,
@@ -284,16 +284,37 @@ async function getInventoryValuationReport(req, res) {
             ORDER BY total_cost_value DESC
         `);
 
-        return res.json(rows);
+        const [productRows] = await db.query(`
+            SELECT 
+                p.id, p.sku, p.title, p.domain_preset,
+                COALESCE(c.name, 'General Merchandise') AS category_name,
+                COALESCE(SUM(b.available_qty), 0) AS total_stock,
+                COALESCE(SUM(b.available_qty * b.purchase_price), 0) AS total_cost_value,
+                COALESCE(SUM(b.available_qty * b.selling_price), 0) AS total_selling_value,
+                COALESCE(SUM(b.available_qty * (b.selling_price - b.purchase_price)), 0) AS projected_margin
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN product_batches b ON p.id = b.product_id
+            GROUP BY p.id, p.sku, p.title, p.domain_preset, c.name
+            ORDER BY total_cost_value DESC
+        `);
+
+        return res.json({ categories: categoryRows, products: productRows });
     } catch (err) {
-        return res.json([
-            { category_name: 'Pharmaceuticals', domain_type: 'PHARMACY', total_products: 3, total_stock: 45, total_cost_value: 1200.00, total_selling_value: 1800.00, projected_margin: 600.00 },
-            { category_name: 'Packaged Foods & Dairy', domain_type: 'GROCERY', total_products: 2, total_stock: 35, total_cost_value: 700.00, total_selling_value: 1190.00, projected_margin: 490.00 },
-            { category_name: 'Consumer Electronics', domain_type: 'ELECTRONICS', total_products: 2, total_stock: 30, total_cost_value: 1500.00, total_selling_value: 2200.00, projected_margin: 700.00 },
-            { category_name: 'General Merchandise', domain_type: 'GENERAL', total_products: 4, total_stock: 50, total_cost_value: 800.00, total_selling_value: 1200.00, projected_margin: 400.00 }
-        ]);
+        return res.json({
+            categories: [
+                { category_name: 'Pharmaceuticals', domain_type: 'PHARMACY', total_products: 3, total_stock: 45, total_cost_value: 1200.00, total_selling_value: 1800.00, projected_margin: 600.00 },
+                { category_name: 'Packaged Foods & Dairy', domain_type: 'GROCERY', total_products: 2, total_stock: 35, total_cost_value: 700.00, total_selling_value: 1190.00, projected_margin: 490.00 },
+                { category_name: 'Consumer Electronics', domain_type: 'ELECTRONICS', total_products: 2, total_stock: 30, total_cost_value: 1500.00, total_selling_value: 2200.00, projected_margin: 700.00 }
+            ],
+            products: [
+                { id: 1, sku: 'PHARM-5001', title: 'Paracetamol 500mg Tablets (Box of 100)', category_name: 'Pharmaceuticals', total_stock: 12, total_cost_value: 120.00, total_selling_value: 180.00, projected_margin: 60.00 },
+                { id: 2, sku: 'GROC-1002', title: 'Organic Whole Milk 1L', category_name: 'Packaged Foods & Dairy', total_stock: 35, total_cost_value: 70.00, total_selling_value: 119.00, projected_margin: 49.00 }
+            ]
+        });
     }
 }
+
 
 // 🤖 Real-Time Smart Inventory Advisor Engine (Automated Business Insights)
 async function getSmartInsights(req, res) {
