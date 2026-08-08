@@ -269,11 +269,12 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
                 const sub = getSubFn ? `<span class="combobox-item-sub">${getSubFn(item)}</span>` : '';
                 return `
                     <div class="combobox-item" data-id="${item.id}">
-                        <div><strong>${title}</strong></div>
+                        <div class="combobox-item-title">${title}</div>
                         ${sub}
                     </div>
                 `;
             }).join('');
+
         }
 
         dropdown.classList.add('active');
