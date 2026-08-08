@@ -647,56 +647,30 @@ body {
     text-align: center;
 }
 
-/* ADJUSTED HORIZONTAL LENGTH PRODUCT SEARCH COMBOMBOX */
-.large-search-input {
+/* LONG HORIZONTAL LENGTH SEARCH INPUT TEXT BOX FOR STOCK OUT FORM */
+.stock-out-long-input {
     width: 100% !important;
-    font-size: 0.95rem !important;
-    padding: 12px 18px !important;
-    height: 46px !important;
-    border: 1.5px solid var(--accent-blue) !important;
-    background: rgba(15, 23, 42, 0.85) !important;
-    border-radius: var(--radius-md) !important;
-    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.12) !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
+    min-width: 100% !important;
+    padding: 10px 16px !important;
+    font-size: 14px !important;
+    height: 44px !important;
     white-space: nowrap !important;
+    overflow: hidden !important;
     text-overflow: ellipsis !important;
+    border: 1.5px solid var(--accent-blue) !important;
+    background: rgba(15, 23, 42, 0.8) !important;
+    border-radius: var(--radius-sm) !important;
+    color: #ffffff !important;
+    font-weight: 500 !important;
     transition: var(--transition) !important;
 }
 
-.large-search-input:focus {
-    box-shadow: 0 0 18px rgba(56, 189, 248, 0.3) !important;
+.stock-out-long-input:focus {
     border-color: #38bdf8 !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.25) !important;
     background: rgba(15, 23, 42, 0.95) !important;
 }
 
-.large-combobox-dropdown {
-    width: 100% !important;
-    min-width: 100% !important;
-    max-height: 320px !important;
-    border: 1.5px solid var(--accent-blue) !important;
-    border-radius: var(--radius-md) !important;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85) !important;
-    overflow-y: auto !important;
-}
-
-.large-combobox-dropdown .combobox-item {
-    padding: 12px 18px !important;
-    font-size: 0.95rem !important;
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    gap: 16px !important;
-}
-
-.combobox-item-title {
-    flex: 1;
-    min-width: 0;
-    font-weight: 600;
-    color: #ffffff;
-    white-space: normal;
-    word-break: break-word;
-}
 
 
 
