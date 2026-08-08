@@ -397,7 +397,11 @@ async function loadDashboardStats() {
         document.getElementById('kpiLowStockVal').innerText = `1`;
         document.getElementById('kpiNearExpiryVal').innerText = `1`;
     }
+
+    // Always fetch & render Recent Transactions preview on Dashboard
+    await loadTransactions();
 }
+
 
 // ====================================================================
 // 4. PRODUCT CATALOG LOGIC
