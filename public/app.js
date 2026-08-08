@@ -1296,3 +1296,126 @@ async function handleAddProductSubmit(e) {
     }
 }
 
+
+// ====================================================================
+// 8. LOW STOCK & NEAR EXPIRY ALERT MODALS LOGIC
+// ====================================================================
+async function openLowStockAlertModal() {
+    openModal('lowStockAlertModal');
+    const tbody = document.getElementById('lowStockModalBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center">Loading low stock products...</td></tr>`;
+
+    try {
+        const res = await fetch(`${API_BASE}/reports/low-stock`, { headers: getAuthHeaders() });
+        let items = [];
+        if (res.ok) {
+            items = await res.json();
+        } else {
+            items = state.products.filter(p => (p.total_stock || 0) <= (p.min_reorder_level || 10));
+        }
+
+        if (items.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">🎉 All product stock levels are healthy! No reorder alerts.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = items.map(p => {
+            const stockVal = parseInt(p.total_stock) || 0;
+            const minVal = parseInt(p.min_reorder_level) || 10;
+            const badgeClass = stockVal === 0 ? 'badge-danger' : 'badge-warning';
+            const statusText = stockVal === 0 ? 'OUT OF STOCK' : 'LOW STOCK';
+
+            return `
+                <tr>
+                    <td><strong>${p.sku}</strong><br><small class="text-muted">${p.barcode || 'N/A'}</small></td>
+                    <td><strong>${p.title}</strong></td>
+                    <td>${p.category_name || 'General'}</td>
+                    <td><strong style="color: ${stockVal === 0 ? '#ef4444' : '#f59e0b'};">${stockVal} ${p.unit_of_measure || 'Pcs'}</strong></td>
+                    <td>${minVal} ${p.unit_of_measure || 'Pcs'}</td>
+                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick='reorderProductStockIn(${JSON.stringify(p)})'>📥 Receive Stock In</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Failed to load low stock breakdown.</td></tr>`;
+    }
+}
+
+async function openNearExpiryAlertModal() {
+    openModal('nearExpiryAlertModal');
+    const tbody = document.getElementById('nearExpiryModalBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center">Loading near expiry items...</td></tr>`;
+
+    try {
+        const res = await fetch(`${API_BASE}/reports/near-expiry`, { headers: getAuthHeaders() });
+        let items = [];
+        if (res.ok) {
+            items = await res.json();
+        } else {
+            items = [
+                { id: 1, batch_number: 'BATCH-PHARM-2026A', product_id: 1, product_title: 'Paracetamol 500mg Tablets (Box of 100)', product_sku: 'PHARM-5001', expiry_date: '2026-08-20', available_qty: 12, selling_price: 15.00, batch_discount_percent: 20.00, offer_description: '🔥 20% Clearance Offer' }
+            ];
+        }
+
+        if (items.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">🎉 No batches expiring within 30 days. All stock is fresh!</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = items.map(b => {
+            const expDateStr = b.expiry_date ? b.expiry_date.slice(0, 10) : 'N/A';
+            const offerText = b.offer_description ? `<span class="badge badge-purple">${b.offer_description}</span>` : 'Near Expiry';
+
+            return `
+                <tr>
+                    <td><strong>${b.product_title || 'Item'}</strong><br><small class="text-muted">${b.product_sku || ''}</small></td>
+                    <td><span class="badge badge-info">📦 ${b.batch_number}</span></td>
+                    <td><strong style="color: #ef4444;">📅 ${expDateStr}</strong></td>
+                    <td><strong>${b.available_qty} ${b.unit_of_measure || 'Pcs'}</strong></td>
+                    <td>₹${parseFloat(b.selling_price || 0).toFixed(2)}</td>
+                    <td>${offerText}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick='clearanceProductStockOut(${JSON.stringify(b)})'>🛍️ Dispatch / Sale</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Failed to load near expiry breakdown.</td></tr>`;
+    }
+}
+
+function reorderProductStockIn(prod) {
+    closeModal('lowStockAlertModal');
+    switchTab('stock-in');
+    
+    const inputEl = document.getElementById('stockInProductInput');
+    const hiddenEl = document.getElementById('stockInProduct');
+    if (inputEl && hiddenEl) {
+        inputEl.value = prod.title;
+        hiddenEl.value = prod.id;
+        onStockInProductSelect(prod);
+    }
+}
+
+function clearanceProductStockOut(item) {
+    closeModal('nearExpiryAlertModal');
+    switchTab('stock-out');
+    
+    const inputEl = document.getElementById('stockOutProductInput');
+    const hiddenEl = document.getElementById('stockOutProduct');
+    if (inputEl && hiddenEl) {
+        inputEl.value = item.product_title || item.title;
+        hiddenEl.value = item.product_id || item.id;
+        onStockOutProductSelect({ id: item.product_id || item.id, title: item.product_title || item.title, sku: item.product_sku || item.sku });
+    }
+}
+
+

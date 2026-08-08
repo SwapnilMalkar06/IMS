@@ -3,7 +3,7 @@
 // ====================================================================
 
 const db = require('../config/db');
-const { mockTransactions } = require('../config/store');
+const { mockTransactions, mockProducts, mockBatches, getBatchesForProduct } = require('../config/store');
 
 async function getTransactions(req, res) {
     try {
@@ -163,15 +163,80 @@ async function getDashboardStats(req, res) {
             }
         });
 
+        const lowStockItems = mockProducts.filter(p => (p.total_stock || 0) <= (p.min_reorder_level || 10));
+        let nearExpiryCount = 0;
+        Object.keys(mockBatches).forEach(pid => {
+            const batches = mockBatches[pid] || [];
+            nearExpiryCount += batches.filter(b => b.available_qty > 0 && (b.batch_discount_percent > 0 || (b.offer_description || '').toLowerCase().includes('expiry') || b.expiry_date <= '2026-09-30')).length;
+        });
+
         return res.json({
             todayStockIn: { count: stockInCount, value: stockInSum },
             allTimeStockIn: { count: stockInCount, value: stockInSum },
             todayStockOut: { count: saleCount, value: saleSum },
             allTimeStockOut: { count: saleCount, value: saleSum },
-            lowStockCount: 1,
-            nearExpiryCount: 1
+            lowStockCount: lowStockItems.length,
+            nearExpiryCount: nearExpiryCount || 1
         });
     }
 }
 
-module.exports = { getTransactions, getDashboardStats };
+async function getLowStockItems(req, res) {
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                p.id, p.sku, p.barcode, p.title, p.min_reorder_level, p.unit_of_measure, p.domain_preset,
+                c.name AS category_name,
+                COALESCE(SUM(b.available_qty), 0) AS total_stock
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN product_batches b ON p.id = b.product_id
+            GROUP BY p.id
+            HAVING COALESCE(SUM(b.available_qty), 0) <= p.min_reorder_level
+            ORDER BY total_stock ASC
+        `);
+        return res.json(rows);
+    } catch (err) {
+        const lowStockItems = mockProducts.filter(p => (p.total_stock || 0) <= (p.min_reorder_level || 10));
+        return res.json(lowStockItems);
+    }
+}
+
+async function getNearExpiryItems(req, res) {
+    try {
+        const [rows] = await db.query(`
+            SELECT 
+                b.*,
+                p.title AS product_title,
+                p.sku AS product_sku,
+                p.unit_of_measure,
+                DATEDIFF(b.expiry_date, CURDATE()) AS days_to_expiry
+            FROM product_batches b
+            JOIN products p ON b.product_id = p.id
+            WHERE b.expiry_date IS NOT NULL 
+              AND b.expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+              AND b.available_qty > 0
+            ORDER BY b.expiry_date ASC
+        `);
+        return res.json(rows);
+    } catch (err) {
+        const result = [];
+        mockProducts.forEach(p => {
+            const batches = getBatchesForProduct(p.id);
+            batches.forEach(b => {
+                if (b.available_qty > 0 && (b.batch_discount_percent > 0 || (b.offer_description || '').toLowerCase().includes('expiry') || (b.expiry_date || '') <= '2026-09-30')) {
+                    result.push({
+                        ...b,
+                        product_title: p.title,
+                        product_sku: p.sku,
+                        unit_of_measure: p.unit_of_measure,
+                        days_to_expiry: 14
+                    });
+                }
+            });
+        });
+        return res.json(result);
+    }
+}
+
+module.exports = { getTransactions, getDashboardStats, getLowStockItems, getNearExpiryItems };

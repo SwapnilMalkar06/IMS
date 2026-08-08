@@ -10,11 +10,12 @@ const { getProducts, createProduct, updateProduct, deleteProduct } = require('..
 const { getProductBatches } = require('../controllers/batchController');
 const { processStockIn } = require('../controllers/stockInController');
 const { processStockOut } = require('../controllers/stockOutController');
-const { getTransactions, getDashboardStats } = require('../controllers/reportController');
+const { getTransactions, getDashboardStats, getLowStockItems, getNearExpiryItems } = require('../controllers/reportController');
 const db = require('../config/db');
 
 // Health Check
 router.get('/health', (req, res) => res.json({ status: 'online', version: '1.0.0' }));
+
 
 // Auth Route
 router.post('/login', async (req, res) => {
@@ -51,6 +52,9 @@ router.post('/login', async (req, res) => {
 
 // Dashboard Stats (Read Permission)
 router.get('/dashboard/stats', requirePermission('READ'), getDashboardStats);
+router.get('/reports/low-stock', requirePermission('READ'), getLowStockItems);
+router.get('/reports/near-expiry', requirePermission('READ'), getNearExpiryItems);
+
 
 // Products Catalog Routes (Create, Read, Update, Delete)
 router.get('/products', requirePermission('READ'), getProducts);

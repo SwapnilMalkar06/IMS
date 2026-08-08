@@ -151,24 +151,25 @@
                         <div class="kpi-sub" id="kpiStockOutSub">0 sales recorded</div>
                     </div>
 
-                    <div class="kpi-card warning-border">
+                    <div class="kpi-card warning-border" onclick="openLowStockAlertModal()" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" title="Click to view all low stock products requiring reorder">
                         <div class="kpi-header">
                             <span class="kpi-title">Low Stock Alert</span>
                             <span class="kpi-icon">⚠️</span>
                         </div>
                         <div class="kpi-value" id="kpiLowStockVal">0</div>
-                        <div class="kpi-sub">Items below reorder point</div>
+                        <div class="kpi-sub">Items below reorder point (Click to view) 🔍</div>
                     </div>
 
-                    <div class="kpi-card danger-border">
+                    <div class="kpi-card danger-border" onclick="openNearExpiryAlertModal()" style="cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" title="Click to view all near-expiry items within 30 days">
                         <div class="kpi-header">
                             <span class="kpi-title">Near Expiry Alert</span>
                             <span class="kpi-icon">⌛</span>
                         </div>
                         <div class="kpi-value" id="kpiNearExpiryVal">0</div>
-                        <div class="kpi-sub">Expiring within 30 days</div>
+                        <div class="kpi-sub">Expiring within 30 days (Click to view) 🔍</div>
                     </div>
                 </div>
+
 
                 <!-- RECENT TRANSACTIONS PREVIEW TABLE -->
                 <div class="panel">
@@ -654,5 +655,74 @@
     </div>
 
     <script src="app.js"></script>
+
+    <!-- MODAL 3: LOW STOCK ALERTS BREAKDOWN MODAL -->
+    <div class="modal-backdrop" id="lowStockAlertModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <div>
+                    <h3 style="color: #f59e0b;">⚠️ Low Stock Inventory Reorder List</h3>
+                    <span class="text-muted">Products currently at or below minimum threshold point</span>
+                </div>
+                <button class="modal-close" onclick="closeModal('lowStockAlertModal')">&times;</button>
+            </div>
+            <div class="table-responsive mt-3">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>SKU / Barcode</th>
+                            <th>Title</th>
+                            <th>Category</th>
+                            <th>Current Stock</th>
+                            <th>Min Threshold</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lowStockModalBody">
+                        <tr><td colspan="7" class="text-center">Loading low stock items...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer mt-4">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('lowStockAlertModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: NEAR EXPIRY ALERTS BREAKDOWN MODAL -->
+    <div class="modal-backdrop" id="nearExpiryAlertModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <div>
+                    <h3 style="color: #ef4444;">⌛ Near-Expiry Batch Clearance List</h3>
+                    <span class="text-muted">Batches expiring within 30 days or requiring clearance offers</span>
+                </div>
+                <button class="modal-close" onclick="closeModal('nearExpiryAlertModal')">&times;</button>
+            </div>
+            <div class="table-responsive mt-3">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Product Title (SKU)</th>
+                            <th>Batch #</th>
+                            <th>Expiry Date</th>
+                            <th>Available Qty</th>
+                            <th>Selling Price</th>
+                            <th>Active Offer / Discount</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nearExpiryModalBody">
+                        <tr><td colspan="7" class="text-center">Loading near expiry items...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer mt-4">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('nearExpiryAlertModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
