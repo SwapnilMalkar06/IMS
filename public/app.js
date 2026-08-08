@@ -38,11 +38,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     checkLoginSession();
     initTableActionListeners();
     generateUniqueBillNumber();
-    await loadInitialData();
     updateRolePermissionsUI();
-    loadDashboardStats();
-    loadProducts();
+
+    // ⚡ Execute initial API loads concurrently so Dashboard numbers render instantly on refresh
+    Promise.all([
+        loadDashboardStats(),
+        loadInitialData(),
+        loadProducts()
+    ]).catch(err => console.error('Initialization load error:', err));
 });
+
 
 function generateUniqueBillNumber() {
     const billEl = document.getElementById('stockOutBillRef');
@@ -398,32 +403,31 @@ async function loadDashboardStats() {
         if (res.ok) {
             const data = await res.json();
             
-            // Stock In Card (Today + All-Time)
-            document.getElementById('kpiStockInVal').innerText = `₹${data.todayStockIn.value.toFixed(2)}`;
-            document.getElementById('kpiStockInSub').innerText = `Today: ${data.todayStockIn.count} entries | Lifetime: ₹${data.allTimeStockIn.value.toFixed(2)}`;
+            // Stock In Card (Today or Lifetime Value if Today = 0)
+            const stockInDisplayVal = data.todayStockIn.value > 0 ? data.todayStockIn.value : data.allTimeStockIn.value;
+            const stockOutDisplayVal = data.todayStockOut.value > 0 ? data.todayStockOut.value : data.allTimeStockOut.value;
 
-            // Stock Out / Sales Card (Today + All-Time)
-            document.getElementById('kpiStockOutVal').innerText = `₹${data.todayStockOut.value.toFixed(2)}`;
-            document.getElementById('kpiStockOutSub').innerText = `Today: ${data.todayStockOut.count} sales | Lifetime: ₹${data.allTimeStockOut.value.toFixed(2)}`;
+            const stockInEl = document.getElementById('kpiStockInVal');
+            const stockInSubEl = document.getElementById('kpiStockInSub');
+            if (stockInEl) stockInEl.innerText = `₹${parseFloat(stockInDisplayVal || 0).toFixed(2)}`;
+            if (stockInSubEl) stockInSubEl.innerText = `Today: ${data.todayStockIn.count} entries (₹${data.todayStockIn.value.toFixed(2)}) | Lifetime: ₹${data.allTimeStockIn.value.toFixed(2)}`;
 
-            document.getElementById('kpiLowStockVal').innerText = data.lowStockCount;
-            document.getElementById('kpiNearExpiryVal').innerText = data.nearExpiryCount;
+            // Stock Out / Sales Card (Today or Lifetime Value if Today = 0)
+            const stockOutEl = document.getElementById('kpiStockOutVal');
+            const stockOutSubEl = document.getElementById('kpiStockOutSub');
+            if (stockOutEl) stockOutEl.innerText = `₹${parseFloat(stockOutDisplayVal || 0).toFixed(2)}`;
+            if (stockOutSubEl) stockOutSubEl.innerText = `Today: ${data.todayStockOut.count} sales (₹${data.todayStockOut.value.toFixed(2)}) | Lifetime: ₹${data.allTimeStockOut.value.toFixed(2)}`;
+
+            const lowStockEl = document.getElementById('kpiLowStockVal');
+            const nearExpEl = document.getElementById('kpiNearExpiryVal');
+            if (lowStockEl) lowStockEl.innerText = data.lowStockCount;
+            if (nearExpEl) nearExpEl.innerText = data.nearExpiryCount;
         }
     } catch (err) {
-        // Fallback calculation from local state
-        document.getElementById('kpiStockInVal').innerText = `₹1,000.00`;
-        document.getElementById('kpiStockInSub').innerText = `Today: 1 entry | Lifetime: ₹12,500.00`;
-
-        document.getElementById('kpiStockOutVal').innerText = `₹24.00`;
-        document.getElementById('kpiStockOutSub').innerText = `Today: 1 sale | Lifetime: ₹4,850.00`;
-
-        document.getElementById('kpiLowStockVal').innerText = `1`;
-        document.getElementById('kpiNearExpiryVal').innerText = `1`;
+        console.warn('Dashboard stats fetch error:', err);
     }
-
-    // Always fetch & render Recent Transactions preview on Dashboard
-    await loadTransactions();
 }
+
 
 
 // ====================================================================
