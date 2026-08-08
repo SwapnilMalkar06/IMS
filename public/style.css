@@ -647,6 +647,36 @@ body {
     text-align: center;
 }
 
+/* ENLARGED PRODUCT SEARCH COMBOMBOX */
+.large-search-input {
+    font-size: 1.15rem !important;
+    padding: 14px 20px !important;
+    height: 56px !important;
+    border: 2px solid var(--accent-blue) !important;
+    background: rgba(15, 23, 42, 0.9) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0 4px 20px rgba(56, 189, 248, 0.15) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+.large-search-input:focus {
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.35) !important;
+    border-color: #38bdf8 !important;
+}
+
+.large-combobox-dropdown {
+    max-height: 340px !important;
+    border: 2px solid var(--accent-blue) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+.large-combobox-dropdown .combobox-item {
+    padding: 14px 20px !important;
+    font-size: 1.05rem !important;
+}
+
+
 .filter-bar {
     display: flex;
     gap: 18px;

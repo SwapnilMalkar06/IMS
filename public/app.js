@@ -1031,11 +1031,12 @@ function renderStockOutCartTable() {
     let grandTotal = 0;
     tbody.innerHTML = state.stockOutCart.map((item, idx) => {
         grandTotal += item.subtotal;
+        const expStr = item.batch.expiry_date ? ` (Exp: ${item.batch.expiry_date.slice(0, 10)})` : '';
         return `
             <tr>
                 <td>${idx + 1}</td>
                 <td><strong>${item.product.title}</strong><br><small class="text-muted">${item.product.sku}</small></td>
-                <td><span class="badge badge-info">${item.batch.batch_number}</span></td>
+                <td><span class="badge badge-info">📦 ${item.batch.batch_number}${expStr}</span></td>
                 <td><strong>${item.quantity} ${item.product.unit_of_measure || 'Pcs'}</strong></td>
                 <td>₹${item.unit_price.toFixed(2)}</td>
                 <td>₹${item.discount_amount.toFixed(2)}</td>
@@ -1050,6 +1051,7 @@ function renderStockOutCartTable() {
     if (countEl) countEl.innerText = state.stockOutCart.length.toString();
     if (totalEl) totalEl.innerText = `₹${grandTotal.toFixed(2)}`;
 }
+
 
 async function handleStockOutSubmit(e) {
     e.preventDefault();

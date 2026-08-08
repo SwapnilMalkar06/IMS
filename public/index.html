@@ -352,14 +352,15 @@
                     <!-- PRODUCT & BATCH SELECTION FOR ITEM ENTRY -->
                     <div class="form-row">
                         <div class="form-group col-12">
-                            <label>Search & Select Product *</label>
+                            <label style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue);">🔍 Search & Select Product *</label>
                             <div class="combobox-wrapper" id="stockOutProductWrapper">
-                                <input type="text" id="stockOutProductInput" class="form-control combobox-input" placeholder="🔍 Type product title, SKU, or scan barcode..." autocomplete="off">
+                                <input type="text" id="stockOutProductInput" class="form-control combobox-input large-search-input" placeholder="🔍 Type product title, SKU, or scan barcode to add to bill..." autocomplete="off">
                                 <input type="hidden" id="stockOutProduct">
-                                <div class="combobox-dropdown" id="stockOutProductDropdown"></div>
+                                <div class="combobox-dropdown large-combobox-dropdown" id="stockOutProductDropdown"></div>
                             </div>
                         </div>
                     </div>
+
 
                     <!-- BATCH SELECTOR DISPLAY BOX -->
                     <div class="batch-selection-box" id="batchSelectionBox">
