@@ -347,6 +347,7 @@ function onRoleChange() {
 }
 
 function updateRolePermissionsUI() {
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
     const descEl = document.getElementById('roleDescText');
     const roleMap = {
         'ADMIN': { text: '🛡️ Full Control: All operations, product creation & user admin.' },
@@ -355,8 +356,27 @@ function updateRolePermissionsUI() {
         'AUDITOR': { text: '👁️ Auditor: Read-only inspection of catalog & audit ledger.' }
     };
 
-    if (descEl) descEl.innerText = roleMap[state.role] ? roleMap[state.role].text : roleMap['CLERK'].text;
+    if (descEl) descEl.innerText = roleMap[activeRole] ? roleMap[activeRole].text : roleMap['CLERK'].text;
+
+    // 🔒 Enforce Permission: Hide "+ Add New Product" button for CLERK and AUDITOR roles
+    const btnAddProduct = document.getElementById('btnAddProduct') || document.querySelector("button[onclick='openAddProductModal()']");
+    if (btnAddProduct) {
+        if (activeRole === 'ADMIN' || activeRole === 'MANAGER') {
+            btnAddProduct.style.display = 'inline-block';
+        } else {
+            btnAddProduct.style.display = 'none';
+        }
+    }
+
+    // Role-based CSS class toggling
+    document.querySelectorAll('.admin-access').forEach(el => {
+        el.style.display = (activeRole === 'ADMIN') ? '' : 'none';
+    });
+    document.querySelectorAll('.manager-access').forEach(el => {
+        el.style.display = (activeRole === 'ADMIN' || activeRole === 'MANAGER') ? '' : 'none';
+    });
 }
+
 
 function updateDomainFieldsVisibility() {
     const dom = state.domain;
@@ -1235,12 +1255,13 @@ function switchTab(tabId) {
         if (targetTab) targetTab.classList.add('active');
         if (targetBtn) targetBtn.classList.add('active');
 
+        updateRolePermissionsUI();
+
         if (tabId === 'dashboard') loadDashboardStats().catch(() => {});
         if (tabId === 'inventory') loadProducts().catch(() => {});
         if (tabId === 'transactions') loadTransactions().catch(() => {});
         if (tabId === 'reports') loadActiveReport().catch(() => {});
     } catch (err) {
-
         console.error('Error switching tab:', err);
     }
 }
@@ -1256,8 +1277,14 @@ function closeModal(id) {
 }
 
 function openAddProductModal() {
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole !== 'ADMIN' && activeRole !== 'MANAGER') {
+        alert(`❌ Access Denied: Role '${activeRole}' cannot add products. Please log in as Super Admin or Manager.`);
+        return;
+    }
     openModal('addProductModal');
 }
+
 
 
 async function handleAddProductSubmit(e) {
