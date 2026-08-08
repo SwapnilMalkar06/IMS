@@ -117,9 +117,10 @@ async function getLowStockItems(req, res) {
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN product_batches b ON p.id = b.product_id
-            GROUP BY p.id
-            HAVING COALESCE(SUM(b.available_qty), 0) <= p.min_reorder_level
+            GROUP BY p.id, p.sku, p.barcode, p.title, p.min_reorder_level, p.unit_of_measure, p.domain_preset, c.name
+            HAVING total_stock <= p.min_reorder_level
             ORDER BY total_stock ASC
+
         `);
         return res.json(rows);
     } catch (err) {
@@ -218,7 +219,7 @@ async function getSalesVelocityReport(req, res) {
                 SELECT product_id, SUM(quantity) AS total_sold, SUM(total_amount) AS total_revenue
                 FROM transactions WHERE txn_type = 'SALE' GROUP BY product_id
             ) sales ON p.id = sales.product_id
-            GROUP BY p.id
+            GROUP BY p.id, p.sku, p.title, p.min_reorder_level, p.unit_of_measure, c.name, sales.total_sold, sales.total_revenue
             ORDER BY total_units_sold DESC
         `);
 
@@ -246,9 +247,10 @@ async function getInventoryValuationReport(req, res) {
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             LEFT JOIN product_batches b ON p.id = b.product_id
-            GROUP BY p.id
+            GROUP BY p.id, p.sku, p.title, p.domain_preset, c.name
             ORDER BY total_cost_value DESC
         `);
+
 
         return res.json(rows);
     } catch (err) {
@@ -270,7 +272,7 @@ async function getSmartInsights(req, res) {
             FROM products p 
             JOIN (SELECT product_id, SUM(quantity) AS sold FROM transactions WHERE txn_type = 'SALE' GROUP BY product_id) sales ON p.id = sales.product_id
             LEFT JOIN product_batches b ON p.id = b.product_id
-            GROUP BY p.id HAVING stock <= p.min_reorder_level AND sales.sold >= 5
+            GROUP BY p.id, p.title, p.sku, p.min_reorder_level, sales.sold HAVING stock <= p.min_reorder_level AND sales.sold >= 5
             LIMIT 2
         `);
 
@@ -305,9 +307,12 @@ async function getSmartInsights(req, res) {
             SELECT p.title, p.sku, COALESCE(SUM(b.available_qty), 0) AS stock 
             FROM products p LEFT JOIN product_batches b ON p.id = b.product_id
             LEFT JOIN (SELECT DISTINCT product_id FROM transactions WHERE txn_type = 'SALE') s ON p.id = s.product_id
-            WHERE s.product_id IS NULL AND COALESCE(b.available_qty, 0) > 0
+            WHERE s.product_id IS NULL
+            GROUP BY p.id, p.title, p.sku
+            HAVING stock > 0
             LIMIT 2
         `);
+
 
         deadStock.forEach(item => {
             insights.push({
