@@ -1636,7 +1636,7 @@ async function loadActiveReport() {
         } catch (e) {}
 
     } else if (subTab === 'valuation') {
-        if (tableTitle) tableTitle.innerText = '📦 Total Inventory Asset Valuation';
+        if (tableTitle) tableTitle.innerText = '📦 Total Inventory Asset Valuation by Category';
         try {
             const res = await fetch(`${API_BASE}/reports/inventory-valuation`, { headers: getAuthHeaders() });
             const data = await res.json();
@@ -1666,30 +1666,32 @@ async function loadActiveReport() {
             if (tableHead) {
                 tableHead.innerHTML = `
                     <tr>
-                        <th>Product Title</th>
-                        <th>Category</th>
-                        <th>Total Stock</th>
-                        <th>Cost Valuation</th>
-                        <th>Selling Valuation</th>
+                        <th>Category Name</th>
+                        <th>Domain Scope</th>
+                        <th>Total SKUs</th>
+                        <th>Total Stock On Hand</th>
+                        <th>Capital Cost Valuation</th>
+                        <th>Potential Selling Valuation</th>
                         <th>Projected Margin</th>
                     </tr>
                 `;
             }
 
             let list = [...data];
-            if (search) list = list.filter(i => (i.title || '').toLowerCase().includes(search.toLowerCase()));
+            if (search) list = list.filter(i => (i.category_name || '').toLowerCase().includes(search.toLowerCase()));
 
             if (tbody) {
                 tbody.innerHTML = list.map(i => `
                     <tr>
-                        <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku}</small></td>
-                        <td>${i.category_name || 'General'}</td>
-                        <td><strong>${i.total_stock} Pcs</strong></td>
+                        <td><strong>${i.category_name || 'General'}</strong></td>
+                        <td><span class="badge badge-purple">${i.domain_type || 'GENERAL'}</span></td>
+                        <td><strong>${i.total_products || 1} SKUs</strong></td>
+                        <td><strong>${i.total_stock || 0} Pcs</strong></td>
                         <td>₹${parseFloat(i.total_cost_value || 0).toFixed(2)}</td>
                         <td>₹${parseFloat(i.total_selling_value || 0).toFixed(2)}</td>
                         <td><strong style="color: #10b981;">₹${parseFloat(i.projected_margin || 0).toFixed(2)}</strong></td>
                     </tr>
-                `).join('');
+                `).join('') || `<tr><td colspan="7" class="text-center text-muted">No valuation records found.</td></tr>`;
             }
 
             renderReportCharts('valuation', list);
@@ -1698,6 +1700,7 @@ async function loadActiveReport() {
         renderReportCharts('sales', []);
     }
 }
+
 
 async function loadSmartInsights() {
     const container = document.getElementById('smartInsightsList');
@@ -1790,21 +1793,20 @@ function renderReportCharts(type, data) {
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
     } else if (type === 'valuation') {
+        if (chart1Title) chart1Title.innerText = '📦 Capital Investment (At Cost Price) by Category';
+        if (chart2Title) chart2Title.innerText = '💎 Expected Sales Value Share (%) by Category';
 
-        if (chart1Title) chart1Title.innerText = '📦 Capital Investment (At Cost Price)';
-        if (chart2Title) chart2Title.innerText = '💎 Expected Sales Value';
-
-        const labels = data.slice(0, 5).map(d => d.title ? d.title.slice(0, 16) + '...' : 'Item');
-        const costVals = data.slice(0, 5).map(d => d.total_cost_value || 0);
-        const sellVals = data.slice(0, 5).map(d => d.total_selling_value || 0);
+        const labels = data.map(d => d.category_name || 'Category');
+        const costVals = data.map(d => d.total_cost_value || 0);
+        const sellVals = data.map(d => d.total_selling_value || 0);
 
         state.reportCharts.c1 = new Chart(ctx1, {
             type: 'bar',
             data: {
                 labels,
-                datasets: [{ label: 'Cost Value (₹)', data: costVals, backgroundColor: '#6366f1', borderRadius: 6 }]
+                datasets: [{ label: 'Cost Valuation (₹)', data: costVals, backgroundColor: '#6366f1', borderRadius: 6 }]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
 
         state.reportCharts.c2 = new Chart(ctx2, {
@@ -1813,9 +1815,10 @@ function renderReportCharts(type, data) {
                 labels,
                 datasets: [{ data: sellVals, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'] }]
             },
-            options: { responsive: true, maintainAspectRatio: false }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
     }
+
 }
 
 function exportReportCSV() {
