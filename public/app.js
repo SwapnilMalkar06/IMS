@@ -358,7 +358,24 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
         });
 
         if (matches.length === 0) {
-            dropdown.innerHTML = `<div class="combobox-empty">No matching records found</div>`;
+            if (inputId === 'stockInSupplierInput' && term) {
+                dropdown.innerHTML = `
+                    <div class="combobox-empty">No matching suppliers found</div>
+                    <div class="combobox-item add-supplier-trigger-item" style="border-top: 1px solid rgba(255,255,255,0.1); color: #10b981; font-weight: 600; cursor: pointer;">
+                        ➕ Add "${filterTerm.trim()}" as New Supplier
+                    </div>
+                `;
+                const addTrigger = dropdown.querySelector('.add-supplier-trigger-item');
+                if (addTrigger) {
+                    addTrigger.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        dropdown.classList.remove('active');
+                        openAddSupplierModal(filterTerm.trim());
+                    });
+                }
+            } else {
+                dropdown.innerHTML = `<div class="combobox-empty">No matching records found</div>`;
+            }
         } else {
             dropdown.innerHTML = matches.slice(0, 50).map(item => {
                 const title = getTitleFn(item);
@@ -370,14 +387,12 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
                     </div>
                 `;
             }).join('');
-
-
         }
 
         dropdown.classList.add('active');
 
         // Attach click listeners to items
-        dropdown.querySelectorAll('.combobox-item').forEach(el => {
+        dropdown.querySelectorAll('.combobox-item:not(.add-supplier-trigger-item)').forEach(el => {
             el.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 const itemId = el.getAttribute('data-id');
@@ -393,10 +408,12 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
     }
 
     input.addEventListener('focus', () => renderList(input.value));
+    input.addEventListener('click', () => renderList(input.value));
     input.addEventListener('input', () => {
-        if (hidden) hidden.value = ''; // Reset ID on edit
+        if (hidden) hidden.value = '';
         renderList(input.value);
     });
+
 
     input.addEventListener('blur', () => {
         setTimeout(() => {
@@ -760,9 +777,10 @@ function populateFormProductDropdowns() {
         'stockInSupplierDropdown',
         state.suppliers,
         s => s.name,
-        s => s.contact_person ? `Contact: ${s.contact_person}` : '',
+        s => s.contact_person ? `Contact: ${s.contact_person} | Phone: ${s.phone || 'N/A'}` : (s.phone ? `Phone: ${s.phone}` : 'Registered Vendor'),
         null
     );
+
 
     // 3. Stock Out Product Combobox
     setupSearchableCombobox(
