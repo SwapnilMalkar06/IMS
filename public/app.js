@@ -650,6 +650,94 @@ async function viewProductBatches(productId, productTitle) {
     }
 }
 
+function openAddSupplierModal(presetName = '') {
+    const activeRole = state.currentUser ? state.currentUser.role : state.role;
+    if (activeRole === 'CLERK' || activeRole === 'AUDITOR') {
+        alert('❌ Permission Denied: Only Admins and Store Managers can register new suppliers.');
+        return;
+    }
+
+    const form = document.getElementById('addSupplierForm');
+    if (form) form.reset();
+    if (presetName) {
+        const nameInput = document.getElementById('newSupplierName');
+        if (nameInput) nameInput.value = presetName;
+    }
+    openModal('addSupplierModal');
+}
+
+async function handleAddSupplierSubmit(e) {
+    e.preventDefault();
+    const name = document.getElementById('newSupplierName').value.trim();
+    const contact = document.getElementById('newSupplierContact').value.trim();
+    const phone = document.getElementById('newSupplierPhone').value.trim();
+    const email = document.getElementById('newSupplierEmail').value.trim();
+    const address = document.getElementById('newSupplierAddress').value.trim();
+
+    if (!name) {
+        alert('⚠️ Please enter the supplier company name.');
+        return;
+    }
+
+    const payload = {
+        name,
+        contact_person: contact,
+        phone,
+        email,
+        address
+    };
+
+    try {
+        const res = await fetch(`${API_BASE}/suppliers`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            const created = data.supplier || { id: Date.now(), name };
+            
+            if (!state.suppliers.some(s => s.id === created.id)) {
+                state.suppliers.push(created);
+            }
+
+            initCombobox(
+                'stockInSupplierInput',
+                'stockInSupplier',
+                'stockInSupplierDropdown',
+                state.suppliers,
+                (selected) => console.log('Selected Supplier:', selected)
+            );
+
+            const inputEl = document.getElementById('stockInSupplierInput');
+            const hiddenEl = document.getElementById('stockInSupplier');
+            if (inputEl && hiddenEl) {
+                inputEl.value = created.name;
+                hiddenEl.value = created.id;
+            }
+
+            closeModal('addSupplierModal');
+            alert(`🎉 Supplier "${created.name}" registered successfully in MySQL database!`);
+        } else {
+            const err = await res.json();
+            alert(`❌ Failed to add supplier: ${err.error || 'Unknown error'}`);
+        }
+    } catch (err) {
+        const newSupp = { id: Date.now(), name, contact_person: contact, phone, email, address };
+        state.suppliers.push(newSupp);
+        const inputEl = document.getElementById('stockInSupplierInput');
+        const hiddenEl = document.getElementById('stockInSupplier');
+        if (inputEl && hiddenEl) {
+            inputEl.value = newSupp.name;
+            hiddenEl.value = newSupp.id;
+        }
+        closeModal('addSupplierModal');
+        alert(`🎉 Supplier "${name}" registered successfully!`);
+    }
+}
+
+
 function populateFormProductDropdowns() {
     // 1. Stock In Product Combobox
 

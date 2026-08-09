@@ -122,4 +122,43 @@ router.get('/suppliers', requirePermission('READ'), async (req, res) => {
     }
 });
 
+router.post('/suppliers', requirePermission('STOCK_IN'), async (req, res) => {
+
+    try {
+        const { name, contact_person, phone, email, address } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Supplier company name is required.' });
+        }
+
+        const [result] = await db.query(`
+            INSERT INTO suppliers (name, contact_person, phone, email, address)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            name.trim(),
+            contact_person ? contact_person.trim() : null,
+            phone ? phone.trim() : null,
+            email ? email.trim() : null,
+            address ? address.trim() : null
+        ]);
+
+        const newSupplier = {
+            id: result.insertId,
+            name: name.trim(),
+            contact_person,
+            phone,
+            email,
+            address
+        };
+
+        return res.status(201).json({
+            message: 'Supplier created successfully!',
+            supplier: newSupplier
+        });
+    } catch (err) {
+        console.error('Create Supplier Error:', err);
+        return res.status(500).json({ error: 'Failed to add supplier to database.' });
+    }
+});
+
 module.exports = router;
+
