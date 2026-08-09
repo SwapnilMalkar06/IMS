@@ -392,13 +392,22 @@ async function getSmartInsights(req, res) {
         `);
 
         nearExp.forEach(item => {
+            let expFormatted = 'N/A';
+            if (item.expiry_date) {
+                const str = item.expiry_date instanceof Date ? item.expiry_date.toISOString().slice(0, 10) : item.expiry_date.toString().slice(0, 10);
+                const parts = str.split('-');
+                if (parts.length === 3) expFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                else expFormatted = str;
+            }
+
             insights.push({
                 type: 'WARNING',
                 icon: '🏷️',
                 title: `Clearance Discount Strategy: Batch ${item.batch_number}`,
-                description: `${item.available_qty} units of "${item.title}" expire on ${item.expiry_date.toISOString().slice(0, 10)}. Apply a 20-30% clearance discount in Stock Out form to recover capital!`
+                description: `${item.available_qty} units of "${item.title}" expire on ${expFormatted}. Apply a 20-30% clearance discount in Stock Out form to recover capital!`
             });
         });
+
 
         // Insight 3: Dead Stock Capital Unlocking
         const [deadStock] = await db.query(`
