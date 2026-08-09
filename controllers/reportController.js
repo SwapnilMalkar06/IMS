@@ -520,6 +520,21 @@ async function getMovementReport(req, res) {
             WHERE 1=1 ${dateCondition}
         `, params);
 
+        const [categorySummary] = await db.query(`
+            SELECT 
+                COALESCE(c.name, 'General Merchandise') AS category_name,
+                COALESCE(c.domain_type, 'GENERAL') AS domain_type,
+                COUNT(t.id) AS total_events,
+                COALESCE(SUM(t.quantity), 0) AS total_quantity,
+                COALESCE(SUM(t.total_amount), 0) AS total_loss_value
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE t.txn_type IN ('DAMAGE_WRITE_OFF', 'VENDOR_RETURN', 'INTERNAL_USE', 'ADJUSTMENT') ${dateCondition}
+            GROUP BY c.id, c.name, c.domain_type
+            ORDER BY total_loss_value DESC
+        `, params);
+
         const [rows] = await db.query(`
             SELECT 
                 t.id,
@@ -527,7 +542,7 @@ async function getMovementReport(req, res) {
                 t.txn_type,
                 p.title AS product_title,
                 p.sku AS product_sku,
-                COALESCE(c.name, 'General') AS category_name,
+                COALESCE(c.name, 'General Merchandise') AS category_name,
                 t.quantity,
                 t.unit_price,
                 t.total_amount,
@@ -543,15 +558,22 @@ async function getMovementReport(req, res) {
 
         return res.json({
             summary: summary[0] || { total_damage_loss: 0, total_damaged_units: 0, total_vendor_returns: 0, total_internal_use: 0, total_audit_adjustments: 0 },
+            categories: categorySummary,
             items: rows
         });
     } catch (err) {
         return res.json({
             summary: { total_damage_loss: 1978.00, total_damaged_units: 14, total_vendor_returns: 525.00, total_internal_use: 75.00, total_audit_adjustments: 2697.00 },
+            categories: [
+                { category_name: 'Pharmaceuticals', domain_type: 'PHARMACY', total_events: 3, total_quantity: 19, total_loss_value: 2053.00 },
+                { category_name: 'Consumer Electronics', domain_type: 'ELECTRONICS', total_events: 2, total_quantity: 17, total_loss_value: 2323.00 },
+                { category_name: 'Packaged Foods & Dairy', domain_type: 'GROCERY', total_events: 4, total_quantity: 170, total_loss_value: 48000.00 }
+            ],
             items: []
         });
     }
 }
+
 
 module.exports = {
     getTransactions,

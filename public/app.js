@@ -2117,12 +2117,23 @@ async function loadActiveReport() {
 
             renderReportCharts('supplier', list);
         } catch (e) {}
+function selectMovementCategory(catName) {
+    state.movementSelectedCategory = catName;
+    loadActiveReport();
+}
+
+function resetMovementCategoryFilter() {
+    state.movementSelectedCategory = null;
+    loadActiveReport();
+}
+
     } else if (subTab === 'movement') {
-        if (tableTitle) tableTitle.innerHTML = '🏢 Stock Movement, Damaged Write-offs & Audit Adjustments Ledger';
+        const selectedCat = state.movementSelectedCategory;
         try {
             const res = await fetch(`${API_BASE}/reports/stock-movement?period=${period}`, { headers: getAuthHeaders() });
             const data = await res.json();
             const summary = data.summary || { total_damage_loss: 0, total_damaged_units: 0, total_vendor_returns: 0, total_internal_use: 0, total_audit_adjustments: 0 };
+            const categories = data.categories || [];
             const items = data.items || [];
             state.reportDataset = items;
 
@@ -2151,51 +2162,95 @@ async function loadActiveReport() {
                 `;
             }
 
-            if (tableHead) {
-                tableHead.innerHTML = `
-                    <tr>
-                        <th>Date & Time</th>
-                        <th>Txn Ref #</th>
-                        <th>Type</th>
-                        <th>Product Title (SKU)</th>
-                        <th>Category</th>
-                        <th>Qty</th>
-                        <th>Unit Price</th>
-                        <th>Total Value</th>
-                        <th>Audit Reason / Remarks</th>
-                    </tr>
-                `;
+            if (!selectedCat) {
+                // LEVEL 1: CATEGORY MOVEMENT SUMMARY
+                if (tableTitle) {
+                    tableTitle.innerHTML = '🏢 Stock Movement, Damaged Write-offs & Audit Adjustments by Category <small class="text-muted" style="font-size: 13px;">(Click any category to view individual product events)</small>';
+                }
+
+                if (tableHead) {
+                    tableHead.innerHTML = `
+                        <tr>
+                            <th>Category Name</th>
+                            <th>Domain Scope</th>
+                            <th>Total Movement / Audit Events</th>
+                            <th>Total Quantity Affected</th>
+                            <th>Total Financial Valuation (Loss/Transfer)</th>
+                            <th>Action (Drill-Down)</th>
+                        </tr>
+                    `;
+                }
+
+                let catList = [...categories];
+                if (search) catList = catList.filter(c => (c.category_name || '').toLowerCase().includes(search.toLowerCase()));
+
+                if (tbody) {
+                    tbody.innerHTML = catList.map(c => `
+                        <tr>
+                            <td><strong style="font-size: 1rem; color: #ffffff;">${c.category_name}</strong></td>
+                            <td><span class="badge badge-purple">${c.domain_type || 'GENERAL'}</span></td>
+                            <td><span class="badge badge-info">${c.total_events || 0} Events</span></td>
+                            <td><strong>${c.total_quantity || 0} Pcs</strong></td>
+                            <td><strong style="color: #ef4444; font-size: 1.05rem;">₹${parseFloat(c.total_loss_value || 0).toFixed(2)}</strong></td>
+                            <td>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="selectMovementCategory('${c.category_name.replace(/'/g, "\\'")}')">🔍 View Products & Events →</button>
+                            </td>
+                        </tr>
+                    `).join('') || `<tr><td colspan="6" class="text-center text-muted">No stock movement or write-off categories found.</td></tr>`;
+                }
+            } else {
+                // LEVEL 2: PRODUCT & EVENT DRILL-DOWN FOR SELECTED CATEGORY
+                if (tableTitle) {
+                    tableTitle.innerHTML = `🏢 Stock Movement Events in Category: <strong>${selectedCat}</strong> <button class="btn btn-secondary btn-sm" onclick="resetMovementCategoryFilter()" style="margin-left: 12px;">⬅️ Back to Category Overview</button>`;
+                }
+
+                if (tableHead) {
+                    tableHead.innerHTML = `
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Txn Ref #</th>
+                            <th>Type</th>
+                            <th>Product Title (SKU)</th>
+                            <th>Category</th>
+                            <th>Qty</th>
+                            <th>Unit Price</th>
+                            <th>Total Value</th>
+                            <th>Audit Reason / Remarks</th>
+                        </tr>
+                    `;
+                }
+
+                let prodList = items.filter(i => i.category_name === selectedCat);
+                if (search) prodList = prodList.filter(i => (i.product_title || '').toLowerCase().includes(search.toLowerCase()) || (i.remarks || '').toLowerCase().includes(search.toLowerCase()) || (i.txn_number || '').toLowerCase().includes(search.toLowerCase()));
+
+                const typeBadgeMap = {
+                    'DAMAGE_WRITE_OFF': '<span class="badge badge-danger">💥 Damage Write-Off</span>',
+                    'VENDOR_RETURN': '<span class="badge badge-warning">📦 Vendor Return</span>',
+                    'INTERNAL_USE': '<span class="badge badge-purple">🏥 Internal Use</span>',
+                    'ADJUSTMENT': '<span class="badge badge-info">📋 Audit Adjustment</span>'
+                };
+
+                if (tbody) {
+                    tbody.innerHTML = prodList.map(i => `
+                        <tr>
+                            <td>📅 ${formatDateDDMMYYYY(i.txn_date)}</td>
+                            <td><strong>${i.txn_number}</strong></td>
+                            <td>${typeBadgeMap[i.txn_type] || `<span class="badge badge-secondary">${i.txn_type}</span>`}</td>
+                            <td><strong>${i.product_title}</strong><br><small class="text-muted">${i.product_sku}</small></td>
+                            <td>${i.category_name || 'General'}</td>
+                            <td><strong>${i.quantity} Pcs</strong></td>
+                            <td>₹${parseFloat(i.unit_price || 0).toFixed(2)}</td>
+                            <td><strong style="color: #ef4444;">₹${parseFloat(i.total_amount || 0).toFixed(2)}</strong></td>
+                            <td>${i.remarks}</td>
+                        </tr>
+                    `).join('') || `<tr><td colspan="9" class="text-center text-muted">No stock movement or write-off records found for category "${selectedCat}".</td></tr>`;
+                }
             }
 
-            let list = [...items];
-            if (search) list = list.filter(i => (i.product_title || '').toLowerCase().includes(search.toLowerCase()) || (i.remarks || '').toLowerCase().includes(search.toLowerCase()) || (i.txn_number || '').toLowerCase().includes(search.toLowerCase()));
-
-            const typeBadgeMap = {
-                'DAMAGE_WRITE_OFF': '<span class="badge badge-danger">💥 Damage Write-Off</span>',
-                'VENDOR_RETURN': '<span class="badge badge-warning">📦 Vendor Return</span>',
-                'INTERNAL_USE': '<span class="badge badge-purple">🏥 Internal Use</span>',
-                'ADJUSTMENT': '<span class="badge badge-info">📋 Audit Adjustment</span>'
-            };
-
-            if (tbody) {
-                tbody.innerHTML = list.map(i => `
-                    <tr>
-                        <td>📅 ${formatDateDDMMYYYY(i.txn_date)}</td>
-                        <td><strong>${i.txn_number}</strong></td>
-                        <td>${typeBadgeMap[i.txn_type] || `<span class="badge badge-secondary">${i.txn_type}</span>`}</td>
-                        <td><strong>${i.product_title}</strong><br><small class="text-muted">${i.product_sku}</small></td>
-                        <td>${i.category_name || 'General'}</td>
-                        <td><strong>${i.quantity} Pcs</strong></td>
-                        <td>₹${parseFloat(i.unit_price || 0).toFixed(2)}</td>
-                        <td><strong style="color: #ef4444;">₹${parseFloat(i.total_amount || 0).toFixed(2)}</strong></td>
-                        <td>${i.remarks}</td>
-                    </tr>
-                `).join('') || `<tr><td colspan="9" class="text-center text-muted">No stock movement or write-off records found for this period.</td></tr>`;
-            }
-
-            renderReportCharts('movement', items);
+            renderReportCharts('movement', categories);
         } catch (e) {}
-    } else {
+    }
+ else {
         renderReportCharts('sales', []);
     }
 }
