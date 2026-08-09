@@ -81,6 +81,37 @@ function applyDDMMYYYYMask(input) {
     });
 }
 
+function initFlatpickrCalendars() {
+    if (typeof flatpickr !== 'undefined') {
+        flatpickr("#stockInExpiry", {
+            dateFormat: "d/m/Y",
+            allowInput: true,
+            theme: "dark",
+            placeholder: "📅 Select Date (DD/MM/YYYY)"
+        });
+
+        flatpickr("#txnStartDate", {
+            dateFormat: "d/m/Y",
+            allowInput: true,
+            theme: "dark",
+            placeholder: "📅 From Date",
+            onChange: function () {
+                loadTransactions();
+            }
+        });
+
+        flatpickr("#txnEndDate", {
+            dateFormat: "d/m/Y",
+            allowInput: true,
+            theme: "dark",
+            placeholder: "📅 To Date",
+            onChange: function () {
+                loadTransactions();
+            }
+        });
+    }
+}
+
 // INITIALIZATION ON DOM LOADED
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 OmniStock IMS Application Initializing...');
@@ -92,6 +123,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const el = document.getElementById(id);
         if (el) applyDDMMYYYYMask(el);
     });
+    initFlatpickrCalendars();
+
 
     updateRolePermissionsUI();
 

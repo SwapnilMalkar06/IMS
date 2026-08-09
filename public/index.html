@@ -8,8 +8,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
+
 
 <body>
 
@@ -249,8 +253,9 @@
                         </div>
                         <div class="form-group col-4 domain-field-pharmacy domain-field-grocery">
                             <label>Expiry Date (DD/MM/YYYY)</label>
-                            <input type="text" id="stockInExpiry" class="form-control" placeholder="DD/MM/YYYY" maxlength="10" title="Enter date in DD/MM/YYYY format (e.g. 09/08/2026)">
+                            <input type="text" id="stockInExpiry" class="form-control flatpickr-date" placeholder="📅 Select Date (DD/MM/YYYY)" title="Click to choose date from popup calendar">
                         </div>
+
 
 
                         <div class="form-group col-4 domain-field-electronics">
@@ -445,10 +450,11 @@
 
                         <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
                             <span class="text-muted" style="font-size: 12px; font-weight: 600;">Date Range:</span>
-                            <input type="text" id="txnStartDate" class="form-control" style="width: 120px; font-size: 12px; padding: 4px 8px;" placeholder="DD/MM/YYYY" maxlength="10" onchange="loadTransactions()" title="Filter from start date (DD/MM/YYYY)">
+                            <input type="text" id="txnStartDate" class="form-control flatpickr-date" style="width: 130px; font-size: 12px; padding: 4px 8px;" placeholder="📅 From Date" title="Click to select start date from calendar">
                             <span class="text-muted" style="font-size: 12px;">to</span>
-                            <input type="text" id="txnEndDate" class="form-control" style="width: 120px; font-size: 12px; padding: 4px 8px;" placeholder="DD/MM/YYYY" maxlength="10" onchange="loadTransactions()" title="Filter to end date (DD/MM/YYYY)">
+                            <input type="text" id="txnEndDate" class="form-control flatpickr-date" style="width: 130px; font-size: 12px; padding: 4px 8px;" placeholder="📅 To Date" title="Click to select end date from calendar">
                         </div>
+
 
 
                         <input type="text" id="txnSearchInput" class="form-control" placeholder="🔍 Search title, SKU, batch #, txn #, customer..." oninput="loadTransactions()" style="flex: 1; min-width: 220px;">
