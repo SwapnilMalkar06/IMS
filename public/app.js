@@ -403,20 +403,17 @@ async function loadDashboardStats() {
         if (res.ok) {
             const data = await res.json();
             
-            // Stock In Card (Today or Lifetime Value if Today = 0)
-            const stockInDisplayVal = data.todayStockIn.value > 0 ? data.todayStockIn.value : data.allTimeStockIn.value;
-            const stockOutDisplayVal = data.todayStockOut.value > 0 ? data.todayStockOut.value : data.allTimeStockOut.value;
-
+            // Stock In Card - STRICTLY TODAY'S VALUE (Resets to ₹0.00 after 24h / midnight)
             const stockInEl = document.getElementById('kpiStockInVal');
             const stockInSubEl = document.getElementById('kpiStockInSub');
-            if (stockInEl) stockInEl.innerText = `₹${parseFloat(stockInDisplayVal || 0).toFixed(2)}`;
-            if (stockInSubEl) stockInSubEl.innerText = `Today: ${data.todayStockIn.count} entries (₹${data.todayStockIn.value.toFixed(2)}) | Lifetime: ₹${data.allTimeStockIn.value.toFixed(2)}`;
+            if (stockInEl) stockInEl.innerText = `₹${parseFloat(data.todayStockIn.value || 0).toFixed(2)}`;
+            if (stockInSubEl) stockInSubEl.innerText = `Today: ${data.todayStockIn.count} entries | Lifetime: ₹${parseFloat(data.allTimeStockIn.value || 0).toFixed(2)}`;
 
-            // Stock Out / Sales Card (Today or Lifetime Value if Today = 0)
+            // Stock Out / Sales Card - STRICTLY TODAY'S VALUE (Resets to ₹0.00 after 24h / midnight)
             const stockOutEl = document.getElementById('kpiStockOutVal');
             const stockOutSubEl = document.getElementById('kpiStockOutSub');
-            if (stockOutEl) stockOutEl.innerText = `₹${parseFloat(stockOutDisplayVal || 0).toFixed(2)}`;
-            if (stockOutSubEl) stockOutSubEl.innerText = `Today: ${data.todayStockOut.count} sales (₹${data.todayStockOut.value.toFixed(2)}) | Lifetime: ₹${data.allTimeStockOut.value.toFixed(2)}`;
+            if (stockOutEl) stockOutEl.innerText = `₹${parseFloat(data.todayStockOut.value || 0).toFixed(2)}`;
+            if (stockOutSubEl) stockOutSubEl.innerText = `Today: ${data.todayStockOut.count} sales | Lifetime: ₹${parseFloat(data.allTimeStockOut.value || 0).toFixed(2)}`;
 
             const lowStockEl = document.getElementById('kpiLowStockVal');
             const nearExpEl = document.getElementById('kpiNearExpiryVal');
@@ -427,6 +424,7 @@ async function loadDashboardStats() {
         console.warn('Dashboard stats fetch error:', err);
     }
 }
+
 
 
 
@@ -1168,11 +1166,15 @@ async function handleStockOutSubmit(e) {
 // ====================================================================
 async function loadTransactions() {
     const type = document.getElementById('txnFilterType')?.value || 'ALL';
-    const period = document.getElementById('txnFilterPeriod')?.value || 'ALL';
+    const period = document.getElementById('txnFilterPeriod')?.value || 'TODAY';
+    const startDate = document.getElementById('txnStartDate')?.value || '';
+    const endDate = document.getElementById('txnEndDate')?.value || '';
     const search = document.getElementById('txnSearchInput')?.value || '';
     
     try {
         let url = `${API_BASE}/transactions?type=${type}&period=${period}`;
+        if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+        if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
 
         const res = await fetch(url, { headers: getAuthHeaders() });
@@ -1185,6 +1187,7 @@ async function loadTransactions() {
 
     renderTransactionsTables();
 }
+
 
 
 

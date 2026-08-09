@@ -8,7 +8,7 @@ const { mockTransactions, mockProducts, mockBatches, getBatchesForProduct } = re
 // 1. Transaction Audit Ledger
 async function getTransactions(req, res) {
     try {
-        const { type, period, search, limit } = req.query;
+        const { type, period, startDate, endDate, search, limit } = req.query;
         let query = `
             SELECT 
                 t.*,
@@ -33,8 +33,19 @@ async function getTransactions(req, res) {
             params.push(type);
         }
 
-        if (period === 'TODAY') {
+        if (startDate && endDate) {
+            query += ` AND DATE(t.txn_date) BETWEEN ? AND ?`;
+            params.push(startDate, endDate);
+        } else if (startDate) {
+            query += ` AND DATE(t.txn_date) >= ?`;
+            params.push(startDate);
+        } else if (endDate) {
+            query += ` AND DATE(t.txn_date) <= ?`;
+            params.push(endDate);
+        } else if (period === 'TODAY') {
             query += ` AND DATE(t.txn_date) = CURDATE()`;
+        } else if (period === 'YESTERDAY') {
+            query += ` AND DATE(t.txn_date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)`;
         } else if (period === 'THIS_WEEK') {
             query += ` AND t.txn_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`;
         } else if (period === 'THIS_MONTH') {
@@ -42,6 +53,7 @@ async function getTransactions(req, res) {
         } else if (period === 'THIS_YEAR') {
             query += ` AND YEAR(t.txn_date) = YEAR(CURDATE())`;
         }
+
 
         if (search) {
             query += ` AND (p.title LIKE ? OR p.sku LIKE ? OR b.batch_number LIKE ? OR t.txn_number LIKE ? OR t.invoice_ref LIKE ? OR t.customer_name LIKE ?)`;
