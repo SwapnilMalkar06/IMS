@@ -19,8 +19,10 @@ const {
     getSalesVelocityReport,
     getInventoryValuationReport,
     getSupplierProcurementReport,
+    getMovementReport,
     getSmartInsights
 } = require('../controllers/reportController');
+
 
 const db = require('../config/db');
 
@@ -72,7 +74,9 @@ router.get('/reports/financial-sales', requirePermission('READ'), getSalesReport
 router.get('/reports/sales-velocity', requirePermission('READ'), getSalesVelocityReport);
 router.get('/reports/inventory-valuation', requirePermission('READ'), getInventoryValuationReport);
 router.get('/reports/supplier-procurement', requirePermission('READ'), getSupplierProcurementReport);
+router.get('/reports/stock-movement', requirePermission('READ'), getMovementReport);
 router.get('/reports/smart-insights', requirePermission('READ'), getSmartInsights);
+
 
 
 

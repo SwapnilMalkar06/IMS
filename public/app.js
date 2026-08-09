@@ -1746,8 +1746,8 @@ function switchReportSubTab(subTab) {
 }
 
 async function loadActiveReport() {
-    loadSmartInsights();
     const subTab = state.activeReportSubTab || 'sales';
+
     const period = document.getElementById('reportPeriodSelect')?.value || 'THIS_MONTH';
     const search = document.getElementById('reportSearchInput')?.value || '';
 
@@ -2117,10 +2117,89 @@ async function loadActiveReport() {
 
             renderReportCharts('supplier', list);
         } catch (e) {}
+    } else if (subTab === 'movement') {
+        if (tableTitle) tableTitle.innerHTML = '🏢 Stock Movement, Damaged Write-offs & Audit Adjustments Ledger';
+        try {
+            const res = await fetch(`${API_BASE}/reports/stock-movement?period=${period}`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            const summary = data.summary || { total_damage_loss: 0, total_damaged_units: 0, total_vendor_returns: 0, total_internal_use: 0, total_audit_adjustments: 0 };
+            const items = data.items || [];
+            state.reportDataset = items;
+
+            if (kpiGrid) {
+                kpiGrid.innerHTML = `
+                    <div class="kpi-card danger-border">
+                        <div class="kpi-header"><span class="kpi-title">Damage & Shrinkage Loss</span><span class="kpi-icon">💥</span></div>
+                        <div class="kpi-value" style="color: #ef4444;">₹${parseFloat(summary.total_damage_loss || 0).toFixed(2)}</div>
+                        <div class="kpi-sub">${summary.total_damaged_units || 0} Units written off</div>
+                    </div>
+                    <div class="kpi-card warning-border">
+                        <div class="kpi-header"><span class="kpi-title">Vendor Returns</span><span class="kpi-icon">📦</span></div>
+                        <div class="kpi-value">₹${parseFloat(summary.total_vendor_returns || 0).toFixed(2)}</div>
+                        <div class="kpi-sub">Returned to supplier</div>
+                    </div>
+                    <div class="kpi-card purple-border">
+                        <div class="kpi-header"><span class="kpi-title">Internal / Pantry Use</span><span class="kpi-icon">🏥</span></div>
+                        <div class="kpi-value">₹${parseFloat(summary.total_internal_use || 0).toFixed(2)}</div>
+                        <div class="kpi-sub">Consumed internally</div>
+                    </div>
+                    <div class="kpi-card blue-border">
+                        <div class="kpi-header"><span class="kpi-title">Audit Adjustments</span><span class="kpi-icon">📋</span></div>
+                        <div class="kpi-value">₹${parseFloat(summary.total_audit_adjustments || 0).toFixed(2)}</div>
+                        <div class="kpi-sub">Count variance corrections</div>
+                    </div>
+                `;
+            }
+
+            if (tableHead) {
+                tableHead.innerHTML = `
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Txn Ref #</th>
+                        <th>Type</th>
+                        <th>Product Title (SKU)</th>
+                        <th>Category</th>
+                        <th>Qty</th>
+                        <th>Unit Price</th>
+                        <th>Total Value</th>
+                        <th>Audit Reason / Remarks</th>
+                    </tr>
+                `;
+            }
+
+            let list = [...items];
+            if (search) list = list.filter(i => (i.product_title || '').toLowerCase().includes(search.toLowerCase()) || (i.remarks || '').toLowerCase().includes(search.toLowerCase()) || (i.txn_number || '').toLowerCase().includes(search.toLowerCase()));
+
+            const typeBadgeMap = {
+                'DAMAGE_WRITE_OFF': '<span class="badge badge-danger">💥 Damage Write-Off</span>',
+                'VENDOR_RETURN': '<span class="badge badge-warning">📦 Vendor Return</span>',
+                'INTERNAL_USE': '<span class="badge badge-purple">🏥 Internal Use</span>',
+                'ADJUSTMENT': '<span class="badge badge-info">📋 Audit Adjustment</span>'
+            };
+
+            if (tbody) {
+                tbody.innerHTML = list.map(i => `
+                    <tr>
+                        <td>📅 ${formatDateDDMMYYYY(i.txn_date)}</td>
+                        <td><strong>${i.txn_number}</strong></td>
+                        <td>${typeBadgeMap[i.txn_type] || `<span class="badge badge-secondary">${i.txn_type}</span>`}</td>
+                        <td><strong>${i.product_title}</strong><br><small class="text-muted">${i.product_sku}</small></td>
+                        <td>${i.category_name || 'General'}</td>
+                        <td><strong>${i.quantity} Pcs</strong></td>
+                        <td>₹${parseFloat(i.unit_price || 0).toFixed(2)}</td>
+                        <td><strong style="color: #ef4444;">₹${parseFloat(i.total_amount || 0).toFixed(2)}</strong></td>
+                        <td>${i.remarks}</td>
+                    </tr>
+                `).join('') || `<tr><td colspan="9" class="text-center text-muted">No stock movement or write-off records found for this period.</td></tr>`;
+            }
+
+            renderReportCharts('movement', items);
+        } catch (e) {}
     } else {
         renderReportCharts('sales', []);
     }
 }
+
 
 
 
@@ -2264,8 +2343,39 @@ function renderReportCharts(type, data) {
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
+    } else if (type === 'movement') {
+        if (chart1Title) chart1Title.innerText = '💥 Inventory Loss Value (₹) by Write-off / Movement Event';
+        if (chart2Title) chart2Title.innerText = '📊 Stock Quantity Adjustment Share (%) by Type';
+
+        const labels = data.map(d => d.product_title || 'Product');
+        const lossVals = data.map(d => parseFloat(d.total_amount || 0));
+
+        const typeTotals = {};
+        data.forEach(d => {
+            const t = d.txn_type || 'OTHER';
+            typeTotals[t] = (typeTotals[t] || 0) + Math.abs(parseInt(d.quantity || 0));
+        });
+
+        state.reportCharts.c1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Loss / Adjustment Value (₹)', data: lossVals, backgroundColor: '#ef4444', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
+
+        state.reportCharts.c2 = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(typeTotals),
+                datasets: [{ data: Object.values(typeTotals), backgroundColor: ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
     }
 }
+
 
 
 function exportReportCSV() {
