@@ -295,9 +295,15 @@ async function loadInitialData() {
 
         if (catsRes && catsRes.ok) {
             state.categories = await catsRes.json();
-            state.suppliers = await suppsRes.json();
+            const suppList = suppsRes && suppsRes.ok ? await suppsRes.json() : [];
+            state.suppliers = (suppList && suppList.length > 0) ? suppList : [
+                { id: 1, name: 'PharmaSupply Co.', contact_person: 'John Doe', phone: '+91 9876543210' },
+                { id: 2, name: 'Global Electronics Ltd.', contact_person: 'Sarah Smith', phone: '+91 9123456789' },
+                { id: 3, name: 'Metro Wholesalers', contact_person: 'Alex Vance', phone: '+91 9988776655' }
+            ];
             updateStatusIndicator(true);
         } else {
+
             console.warn('⚠️ Server unreachable, using local demo fallback');
             useMockFallbackData();
             updateStatusIndicator(false);
@@ -342,14 +348,22 @@ function useMockFallbackData() {
 // ====================================================================
 // SEARCHABLE AUTOCOMPLETE COMBOBOX ENGINE (TYPE-TO-SEARCH)
 // ====================================================================
-function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleFn, getSubFn, onSelectCallback) {
+function setupSearchableCombobox(inputId, hiddenId, dropdownId, itemsOrFn, getTitleFn, getSubFn, onSelectCallback) {
     const input = document.getElementById(inputId);
     const hidden = document.getElementById(hiddenId);
     const dropdown = document.getElementById(dropdownId);
 
     if (!input || !dropdown) return;
 
+    function getLiveItems() {
+        if (typeof itemsOrFn === 'function') {
+            return itemsOrFn() || [];
+        }
+        return itemsOrFn || [];
+    }
+
     function renderList(filterTerm = '') {
+        const items = getLiveItems();
         const term = filterTerm.trim().toLowerCase();
         const matches = items.filter(item => {
             const title = getTitleFn(item).toLowerCase();
@@ -371,6 +385,21 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
                         e.preventDefault();
                         dropdown.classList.remove('active');
                         openAddSupplierModal(filterTerm.trim());
+                    });
+                }
+            } else if (inputId === 'stockInSupplierInput' && !term && items.length === 0) {
+                dropdown.innerHTML = `
+                    <div class="combobox-empty">No suppliers registered yet</div>
+                    <div class="combobox-item add-supplier-trigger-item" style="border-top: 1px solid rgba(255,255,255,0.1); color: #10b981; font-weight: 600; cursor: pointer;">
+                        ➕ Add New Supplier to System
+                    </div>
+                `;
+                const addTrigger = dropdown.querySelector('.add-supplier-trigger-item');
+                if (addTrigger) {
+                    addTrigger.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        dropdown.classList.remove('active');
+                        openAddSupplierModal();
                     });
                 }
             } else {
@@ -414,13 +443,12 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
         renderList(input.value);
     });
 
-
     input.addEventListener('blur', () => {
         setTimeout(() => {
             dropdown.classList.remove('active');
 
-            // Auto-bind exact match if user typed full title/SKU without clicking dropdown
             if (hidden && !hidden.value && input.value.trim()) {
+                const items = getLiveItems();
                 const val = input.value.trim().toLowerCase();
                 const exactMatch = items.find(item => {
                     const title = getTitleFn(item).toLowerCase();
@@ -437,6 +465,7 @@ function setupSearchableCombobox(inputId, hiddenId, dropdownId, items, getTitleF
         }, 250);
     });
 }
+
 
 
 
@@ -757,12 +786,11 @@ async function handleAddSupplierSubmit(e) {
 
 function populateFormProductDropdowns() {
     // 1. Stock In Product Combobox
-
     setupSearchableCombobox(
         'stockInProductInput',
         'stockInProduct',
         'stockInProductDropdown',
-        state.products,
+        () => state.products,
         p => p.title,
         p => `SKU: ${p.sku} | Barcode: ${p.barcode || 'N/A'} | Stock: ${p.total_stock} ${p.unit_of_measure || 'Pcs'}`,
         (selectedProd) => {
@@ -775,19 +803,18 @@ function populateFormProductDropdowns() {
         'stockInSupplierInput',
         'stockInSupplier',
         'stockInSupplierDropdown',
-        state.suppliers,
+        () => state.suppliers,
         s => s.name,
         s => s.contact_person ? `Contact: ${s.contact_person} | Phone: ${s.phone || 'N/A'}` : (s.phone ? `Phone: ${s.phone}` : 'Registered Vendor'),
         null
     );
-
 
     // 3. Stock Out Product Combobox
     setupSearchableCombobox(
         'stockOutProductInput',
         'stockOutProduct',
         'stockOutProductDropdown',
-        state.products,
+        () => state.products,
         p => p.title,
         p => `SKU: ${p.sku} | Barcode: ${p.barcode || 'N/A'} | Stock: ${p.total_stock} ${p.unit_of_measure || 'Pcs'}`,
         (selectedProd) => {
@@ -800,7 +827,7 @@ function populateFormProductDropdowns() {
         'newCategoryInput',
         'newCategory',
         'newCategoryDropdown',
-        state.categories,
+        () => state.categories,
         c => c.name,
         c => `Domain: ${c.domain_type || 'GENERAL'}`,
         null
@@ -811,11 +838,12 @@ function populateFormProductDropdowns() {
         'editCategoryInput',
         'editCategory',
         'editCategoryDropdown',
-        state.categories,
+        () => state.categories,
         c => c.name,
         c => `Domain: ${c.domain_type || 'GENERAL'}`,
         null
     );
+
 
     // Catalog category filter select
     const catalogCatSel = document.getElementById('catalogCategory');
