@@ -1191,6 +1191,35 @@ async function loadTransactions() {
 
 
 
+function formatTxnDateTime(dateInput) {
+    if (!dateInput) return 'N/A';
+    
+    let str = dateInput.toString().replace('T', ' ').replace('Z', '');
+    let parts = str.split(' ');
+    
+    if (parts.length >= 2) {
+        const datePart = parts[0];
+        const timePart = parts[1].slice(0, 8);
+        
+        const timeSub = timePart.split(':');
+        let hours = parseInt(timeSub[0]);
+        let minutes = timeSub[1] || '00';
+        let ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const formattedHours = hours < 10 ? '0' + hours : hours;
+        
+        return `<strong style="color: #ffffff;">${datePart}</strong><br><small class="text-muted">${formattedHours}:${minutes} ${ampm}</small>`;
+    }
+
+    const d = new Date(dateInput);
+    if (!isNaN(d.getTime())) {
+        return `<strong style="color: #ffffff;">${d.toLocaleDateString()}</strong><br><small class="text-muted">${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</small>`;
+    }
+
+    return dateInput;
+}
+
 function renderTransactionsTables() {
     const recentBody = document.getElementById('recentTxnBody');
     const fullBody = document.getElementById('fullTxnBody');
@@ -1205,12 +1234,12 @@ function renderTransactionsTables() {
 
     const rows = state.transactions.map(t => {
         const typeBadge = badgeMap[t.txn_type] || `<span class="badge">${t.txn_type}</span>`;
-        const timeStr = new Date(t.txn_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const formattedDateTime = formatTxnDateTime(t.txn_date);
         const qtyDisplay = t.txn_type === 'STOCK_IN' ? `+${t.quantity}` : `-${Math.abs(t.quantity)}`;
 
         return `
             <tr>
-                <td>${timeStr}</td>
+                <td>${formattedDateTime}</td>
                 <td><strong>${t.txn_number}</strong></td>
                 <td>${typeBadge}</td>
                 <td>${t.product_title || 'Product'} <br><small class="text-muted">${t.product_sku || ''}</small></td>
@@ -1227,6 +1256,7 @@ function renderTransactionsTables() {
     if (recentBody) recentBody.innerHTML = rows.slice(0, 5) || `<tr><td colspan="7">No recent transactions</td></tr>`;
     if (fullBody) fullBody.innerHTML = rows || `<tr><td colspan="10">No transactions recorded</td></tr>`;
 }
+
 
 function exportTransactionsCSV() {
     if (state.transactions.length === 0) {

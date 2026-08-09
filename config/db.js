@@ -17,9 +17,10 @@ const pool = mysql.createPool({
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    timezone: '+00:00',
+    dateStrings: true,
     ssl: (process.env.DB_SSL === 'true' || process.env.DB_SSL === '1') ? { rejectUnauthorized: false } : undefined
 });
+
 
 // Suppress unhandled background pool errors in mysql2
 if (pool.pool) {
