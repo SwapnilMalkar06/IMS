@@ -18,8 +18,10 @@ const {
     getSalesReport,
     getSalesVelocityReport,
     getInventoryValuationReport,
+    getSupplierProcurementReport,
     getSmartInsights
 } = require('../controllers/reportController');
+
 const db = require('../config/db');
 
 // Health Check
@@ -69,7 +71,10 @@ router.get('/reports/near-expiry', requirePermission('READ'), getNearExpiryItems
 router.get('/reports/financial-sales', requirePermission('READ'), getSalesReport);
 router.get('/reports/sales-velocity', requirePermission('READ'), getSalesVelocityReport);
 router.get('/reports/inventory-valuation', requirePermission('READ'), getInventoryValuationReport);
+router.get('/reports/supplier-procurement', requirePermission('READ'), getSupplierProcurementReport);
 router.get('/reports/smart-insights', requirePermission('READ'), getSmartInsights);
+
+
 
 
 

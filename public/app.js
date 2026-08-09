@@ -2047,11 +2047,81 @@ async function loadActiveReport() {
 
             renderReportCharts('valuation', categories);
         } catch (e) {}
-    }
- else {
+    } else if (subTab === 'supplier') {
+        if (tableTitle) tableTitle.innerHTML = '📥 Supplier Procurement & Purchasing Investment Summary';
+        try {
+            const res = await fetch(`${API_BASE}/reports/supplier-procurement`, { headers: getAuthHeaders() });
+            const suppliers = await res.json();
+            state.reportDataset = suppliers;
+
+            let totalSpent = 0, totalUnits = 0;
+            suppliers.forEach(s => {
+                totalSpent += parseFloat(s.total_procurement_investment || 0);
+                totalUnits += parseInt(s.total_units_received || 0);
+            });
+
+            if (kpiGrid) {
+                kpiGrid.innerHTML = `
+                    <div class="kpi-card green-border">
+                        <div class="kpi-header"><span class="kpi-title">Total Procurement Capital Spent</span><span class="kpi-icon">💸</span></div>
+                        <div class="kpi-value">₹${totalSpent.toFixed(2)}</div>
+                        <div class="kpi-sub">Investment across suppliers</div>
+                    </div>
+                    <div class="kpi-card blue-border">
+                        <div class="kpi-header"><span class="kpi-title">Active Vendor Accounts</span><span class="kpi-icon">🏢</span></div>
+                        <div class="kpi-value">${suppliers.length} Vendors</div>
+                        <div class="kpi-sub">Registered supply partners</div>
+                    </div>
+                    <div class="kpi-card warning-border">
+                        <div class="kpi-header"><span class="kpi-title">Total Units Stocked In</span><span class="kpi-icon">📥</span></div>
+                        <div class="kpi-value">${totalUnits} Pcs</div>
+                        <div class="kpi-sub">Incoming inventory volume</div>
+                    </div>
+                `;
+            }
+
+            if (tableHead) {
+                tableHead.innerHTML = `
+                    <tr>
+                        <th>Supplier / Vendor Company</th>
+                        <th>Contact Person & Phone</th>
+                        <th>Completed Stock-In POs</th>
+                        <th>Unique SKUs Supplied</th>
+                        <th>Total Units Stocked In</th>
+                        <th>Total Capital Investment</th>
+                        <th>Last Procurement Date</th>
+                        <th>Action</th>
+                    </tr>
+                `;
+            }
+
+            let list = [...suppliers];
+            if (search) list = list.filter(i => (i.supplier_name || '').toLowerCase().includes(search.toLowerCase()) || (i.contact_person || '').toLowerCase().includes(search.toLowerCase()));
+
+            if (tbody) {
+                tbody.innerHTML = list.map(i => `
+                    <tr>
+                        <td><strong style="font-size: 1rem; color: #ffffff;">${i.supplier_name}</strong></td>
+                        <td>${i.contact_person || 'N/A'}<br><small class="text-muted">📞 ${i.phone || 'N/A'}</small></td>
+                        <td><span class="badge badge-info">${i.total_orders || 0} Orders</span></td>
+                        <td><strong>${i.total_skus_supplied || 0} SKUs</strong></td>
+                        <td><strong>${i.total_units_received || 0} Pcs</strong></td>
+                        <td><strong style="color: #10b981; font-size: 1.05rem;">₹${parseFloat(i.total_procurement_investment || 0).toFixed(2)}</strong></td>
+                        <td>📅 ${formatDateDDMMYYYY(i.last_order_date)}</td>
+                        <td>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="switchTab('stock-in')">📥 Order Stock</button>
+                        </td>
+                    </tr>
+                `).join('') || `<tr><td colspan="8" class="text-center text-muted">No supplier procurement records found.</td></tr>`;
+            }
+
+            renderReportCharts('supplier', list);
+        } catch (e) {}
+    } else {
         renderReportCharts('sales', []);
     }
 }
+
 
 
 async function loadSmartInsights() {
@@ -2169,9 +2239,34 @@ function renderReportCharts(type, data) {
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
-    }
+    } else if (type === 'supplier') {
+        if (chart1Title) chart1Title.innerText = '💸 Total Procurement Investment (₹) by Supplier';
+        if (chart2Title) chart2Title.innerText = '📥 Received Stock Units Volume by Supplier';
 
+        const labels = data.map(d => d.supplier_name || 'Vendor');
+        const investVals = data.map(d => d.total_procurement_investment || 0);
+        const unitVals = data.map(d => d.total_units_received || 0);
+
+        state.reportCharts.c1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Capital Spent (₹)', data: investVals, backgroundColor: '#10b981', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
+
+        state.reportCharts.c2 = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{ data: unitVals, backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
+    }
 }
+
 
 function exportReportCSV() {
     if (!state.reportDataset || state.reportDataset.length === 0) {

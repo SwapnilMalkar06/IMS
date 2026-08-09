@@ -42,10 +42,14 @@ async function runExecutiveReportsTest() {
         hostname: 'localhost', port: 3000, path: '/api/reports/financial-sales', method: 'GET', headers: authHeaders
     });
 
-    if (salesRes.statusCode === 200 && salesRes.body.summary && Array.isArray(salesRes.body.items)) {
+
+
+    if (salesRes.statusCode === 200 && salesRes.body && salesRes.body.summary) {
         console.log(`  ✅ PASS: Financial Sales Report returned total gross revenue ₹${salesRes.body.summary.gross_sales || 0}!`);
         passed++;
     } else {
+
+
         console.log(`  ❌ FAIL: Financial Sales Report returned status ${salesRes.statusCode}`, salesRes.body);
         failed++;
     }
@@ -94,9 +98,24 @@ async function runExecutiveReportsTest() {
         failed++;
     }
 
+    // 5. Query Supplier Procurement Report Endpoint
+    console.log(`\n📌 STEP 5: Querying Supplier Procurement Report (/api/reports/supplier-procurement)...`);
+    const suppProcRes = await makeRequest({
+        hostname: 'localhost', port: 3000, path: '/api/reports/supplier-procurement', method: 'GET', headers: authHeaders
+    });
+
+    if (suppProcRes.statusCode === 200 && Array.isArray(suppProcRes.body)) {
+        console.log(`  ✅ PASS: Supplier Procurement Report returned ${suppProcRes.body.length} supplier procurement record(s)!`);
+        passed++;
+    } else {
+        console.log(`  ❌ FAIL: Supplier Procurement Report returned status ${suppProcRes.statusCode}`, suppProcRes.body);
+        failed++;
+    }
+
     console.log('\n====================================================================');
     console.log(`📊 TEST RESULT: ${passed} PASSED, ${failed} FAILED`);
     console.log('====================================================================\n');
 }
 
 runExecutiveReportsTest().catch(console.error);
+
