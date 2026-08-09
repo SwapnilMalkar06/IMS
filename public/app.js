@@ -32,12 +32,67 @@ function getAuthHeaders() {
     };
 }
 
+function parseDDMMYYYYToISO(dateStr) {
+    if (!dateStr) return null;
+    let s = dateStr.toString().trim();
+    if (!s) return null;
+
+    if (s.includes('/')) {
+        const parts = s.split('/');
+        if (parts.length === 3) {
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            if (year.length === 4) {
+                return `${year}-${month}-${day}`;
+            }
+        }
+    }
+
+    if (s.includes('-')) {
+        const parts = s.split('-');
+        if (parts.length === 3 && parts[2].length === 4) {
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            return `${year}-${month}-${day}`;
+        }
+        if (parts.length === 3 && parts[0].length === 4) {
+            return s;
+        }
+    }
+
+    return s;
+}
+
+function applyDDMMYYYYMask(input) {
+    if (!input) return;
+    input.addEventListener('input', function () {
+        let v = input.value.replace(/\D/g, '');
+        if (v.length > 8) v = v.substring(0, 8);
+
+        if (v.length >= 5) {
+            input.value = `${v.substring(0, 2)}/${v.substring(2, 4)}/${v.substring(4)}`;
+        } else if (v.length >= 3) {
+            input.value = `${v.substring(0, 2)}/${v.substring(2)}`;
+        } else {
+            input.value = v;
+        }
+    });
+}
+
 // INITIALIZATION ON DOM LOADED
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 OmniStock IMS Application Initializing...');
     checkLoginSession();
     initTableActionListeners();
     generateUniqueBillNumber();
+
+    ['stockInExpiry', 'txnStartDate', 'txnEndDate'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) applyDDMMYYYYMask(el);
+    });
+
     updateRolePermissionsUI();
 
     // ⚡ Execute initial API loads concurrently so Dashboard numbers render instantly on refresh
@@ -820,8 +875,9 @@ async function handleStockInSubmit(e) {
         sku: `SKU-${Date.now().toString().slice(-4)}`,
         supplier_id: parseInt(document.getElementById('stockInSupplier').value) || 1,
         batch_number: document.getElementById('stockInBatchNo').value,
-        expiry_date: document.getElementById('stockInExpiry').value || null,
+        expiry_date: parseDDMMYYYYToISO(document.getElementById('stockInExpiry').value) || null,
         serial_number: document.getElementById('stockInSerial').value || null,
+
         quantity: qty,
         purchase_price: parseFloat(document.getElementById('stockInPurchasePrice').value) || 0,
         selling_price: parseFloat(document.getElementById('stockInSellingPrice').value) || 0,
@@ -1194,8 +1250,9 @@ async function handleStockOutSubmit(e) {
 async function loadTransactions() {
     const type = document.getElementById('txnFilterType')?.value || 'ALL';
     const period = document.getElementById('txnFilterPeriod')?.value || 'TODAY';
-    const startDate = document.getElementById('txnStartDate')?.value || '';
-    const endDate = document.getElementById('txnEndDate')?.value || '';
+    const startDate = parseDDMMYYYYToISO(document.getElementById('txnStartDate')?.value || '');
+    const endDate = parseDDMMYYYYToISO(document.getElementById('txnEndDate')?.value || '');
+
     const search = document.getElementById('txnSearchInput')?.value || '';
     
     try {

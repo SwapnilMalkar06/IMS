@@ -249,8 +249,9 @@
                         </div>
                         <div class="form-group col-4 domain-field-pharmacy domain-field-grocery">
                             <label>Expiry Date (DD/MM/YYYY)</label>
-                            <input type="date" id="stockInExpiry" class="form-control" placeholder="DD/MM/YYYY">
+                            <input type="text" id="stockInExpiry" class="form-control" placeholder="DD/MM/YYYY" maxlength="10" title="Enter date in DD/MM/YYYY format (e.g. 09/08/2026)">
                         </div>
+
 
                         <div class="form-group col-4 domain-field-electronics">
                             <label>Serial / IMEI Number</label>
@@ -444,10 +445,11 @@
 
                         <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">
                             <span class="text-muted" style="font-size: 12px; font-weight: 600;">Date Range:</span>
-                            <input type="date" id="txnStartDate" class="form-control" style="width: 140px; font-size: 12px; padding: 4px 8px;" onchange="loadTransactions()" title="Filter from specific start date">
+                            <input type="text" id="txnStartDate" class="form-control" style="width: 120px; font-size: 12px; padding: 4px 8px;" placeholder="DD/MM/YYYY" maxlength="10" onchange="loadTransactions()" title="Filter from start date (DD/MM/YYYY)">
                             <span class="text-muted" style="font-size: 12px;">to</span>
-                            <input type="date" id="txnEndDate" class="form-control" style="width: 140px; font-size: 12px; padding: 4px 8px;" onchange="loadTransactions()" title="Filter to specific end date">
+                            <input type="text" id="txnEndDate" class="form-control" style="width: 120px; font-size: 12px; padding: 4px 8px;" placeholder="DD/MM/YYYY" maxlength="10" onchange="loadTransactions()" title="Filter to end date (DD/MM/YYYY)">
                         </div>
+
 
                         <input type="text" id="txnSearchInput" class="form-control" placeholder="🔍 Search title, SKU, batch #, txn #, customer..." oninput="loadTransactions()" style="flex: 1; min-width: 220px;">
 
