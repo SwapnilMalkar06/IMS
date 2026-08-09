@@ -2047,7 +2047,77 @@ async function loadActiveReport() {
 
             renderReportCharts('valuation', categories);
         } catch (e) {}
+    } else if (subTab === 'expiry') {
+        if (tableTitle) tableTitle.innerHTML = '⌛ Near-Expiry Batch Clearance & FEFO Risk Analysis';
+        try {
+            const res = await fetch(`${API_BASE}/reports/near-expiry`, { headers: getAuthHeaders() });
+            const batches = await res.json();
+            state.reportDataset = Array.isArray(batches) ? batches : [];
+
+            let totalLossRisk = 0;
+            let nearExpiryCount = 0;
+            state.reportDataset.forEach(b => {
+                nearExpiryCount++;
+                totalLossRisk += (parseFloat(b.purchase_price || b.selling_price || 0) * parseInt(b.available_qty || 0));
+            });
+
+            if (kpiGrid) {
+                kpiGrid.innerHTML = `
+                    <div class="kpi-card danger-border">
+                        <div class="kpi-header"><span class="kpi-title">Near-Expiry Batches</span><span class="kpi-icon">⏳</span></div>
+                        <div class="kpi-value" style="color: #ef4444;">${nearExpiryCount} Batches</div>
+                        <div class="kpi-sub">Expiring within 30-60 days</div>
+                    </div>
+                    <div class="kpi-card warning-border">
+                        <div class="kpi-header"><span class="kpi-title">Financial Value at Risk</span><span class="kpi-icon">💸</span></div>
+                        <div class="kpi-value" style="color: #f59e0b;">₹${totalLossRisk.toFixed(2)}</div>
+                        <div class="kpi-sub">Capital tied in expiring stock</div>
+                    </div>
+                    <div class="kpi-card purple-border">
+                        <div class="kpi-header"><span class="kpi-title">FEFO Dispatch Strategy</span><span class="kpi-icon">⚡</span></div>
+                        <div class="kpi-value">Active</div>
+                        <div class="kpi-sub">First-Expiry First-Out enforced</div>
+                    </div>
+                `;
+            }
+
+            if (tableHead) {
+                tableHead.innerHTML = `
+                    <tr>
+                        <th>Product Title (SKU)</th>
+                        <th>Batch #</th>
+                        <th>Expiry Date</th>
+                        <th>Available Stock</th>
+                        <th>Purchase / Selling Price</th>
+                        <th>Active Clearance Offer</th>
+                        <th>Action</th>
+                    </tr>
+                `;
+            }
+
+            let list = [...state.reportDataset];
+            if (search) list = list.filter(i => (i.title || '').toLowerCase().includes(search.toLowerCase()) || (i.batch_number || '').toLowerCase().includes(search.toLowerCase()));
+
+            if (tbody) {
+                tbody.innerHTML = list.map(i => `
+                    <tr>
+                        <td><strong>${i.title}</strong><br><small class="text-muted">${i.sku || 'N/A'}</small></td>
+                        <td><span class="badge badge-info">${i.batch_number}</span></td>
+                        <td>📅 <strong style="color: #ef4444;">${formatDateDDMMYYYY(i.expiry_date)}</strong></td>
+                        <td><strong>${i.available_qty} Pcs</strong></td>
+                        <td>Purchase: ₹${parseFloat(i.purchase_price || 0).toFixed(2)}<br>Selling: <strong>₹${parseFloat(i.selling_price || 0).toFixed(2)}</strong></td>
+                        <td>${i.offer_description ? `<span class="badge badge-purple">${i.offer_description}</span>` : `<span class="badge badge-warning">Clearance Recommended</span>`}</td>
+                        <td>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="switchTab('stock-out')">🏷️ Issue FEFO Clearance</button>
+                        </td>
+                    </tr>
+                `).join('') || `<tr><td colspan="7" class="text-center text-muted">No near-expiry batches detected. All stock is fresh!</td></tr>`;
+            }
+
+            renderReportCharts('expiry', list);
+        } catch (e) {}
     } else if (subTab === 'supplier') {
+
         if (tableTitle) tableTitle.innerHTML = '📥 Supplier Procurement & Purchasing Investment Summary';
         try {
             const res = await fetch(`${API_BASE}/reports/supplier-procurement`, { headers: getAuthHeaders() });
@@ -2364,7 +2434,33 @@ function renderReportCharts(type, data) {
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
         });
+    } else if (type === 'expiry') {
+        if (chart1Title) chart1Title.innerText = '⌛ Financial Risk Value (₹) by Near-Expiry Batch';
+        if (chart2Title) chart2Title.innerText = '📦 Stock Quantity Breakdown by Expiry Batch';
+
+        const labels = data.map(d => `${d.title || 'Product'} (${d.batch_number || 'Batch'})`);
+        const riskVals = data.map(d => (parseFloat(d.selling_price || d.purchase_price || 0) * parseInt(d.available_qty || 0)));
+        const qtyVals = data.map(d => parseInt(d.available_qty || 0));
+
+        state.reportCharts.c1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ label: 'Stock Value at Risk (₹)', data: riskVals, backgroundColor: '#f59e0b', borderRadius: 6 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
+
+        state.reportCharts.c2 = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels,
+                datasets: [{ data: qtyVals, backgroundColor: ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#10b981'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#ffffff' } } } }
+        });
     } else if (type === 'supplier') {
+
         if (chart1Title) chart1Title.innerText = '💸 Total Procurement Investment (₹) by Supplier';
         if (chart2Title) chart2Title.innerText = '📥 Received Stock Units Volume by Supplier';
 
