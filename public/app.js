@@ -2117,17 +2117,8 @@ async function loadActiveReport() {
 
             renderReportCharts('supplier', list);
         } catch (e) {}
-function selectMovementCategory(catName) {
-    state.movementSelectedCategory = catName;
-    loadActiveReport();
-}
-
-function resetMovementCategoryFilter() {
-    state.movementSelectedCategory = null;
-    loadActiveReport();
-}
-
     } else if (subTab === 'movement') {
+
         const selectedCat = state.movementSelectedCategory;
         try {
             const res = await fetch(`${API_BASE}/reports/stock-movement?period=${period}`, { headers: getAuthHeaders() });
@@ -2475,10 +2466,16 @@ function selectValuationCategory(categoryName) {
     loadActiveReport();
 }
 
-function resetValuationCategoryFilter() {
-    state.valuationSelectedCategory = null;
+function selectMovementCategory(categoryName) {
+    state.movementSelectedCategory = categoryName;
     loadActiveReport();
 }
+
+function resetMovementCategoryFilter() {
+    state.movementSelectedCategory = null;
+    loadActiveReport();
+}
+
 
 
 
