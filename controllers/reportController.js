@@ -50,9 +50,12 @@ async function getTransactions(req, res) {
             query += ` AND t.txn_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`;
         } else if (period === 'THIS_MONTH') {
             query += ` AND MONTH(t.txn_date) = MONTH(CURDATE()) AND YEAR(t.txn_date) = YEAR(CURDATE())`;
+        } else if (period === 'LAST_MONTH') {
+            query += ` AND t.txn_date >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH) AND t.txn_date < DATE_FORMAT(CURDATE(), '%Y-%m-01')`;
         } else if (period === 'THIS_YEAR') {
             query += ` AND YEAR(t.txn_date) = YEAR(CURDATE())`;
         }
+
 
 
         if (search) {
@@ -172,6 +175,33 @@ async function getNearExpiryItems(req, res) {
 // Report 1: Financial Sales Performance (Category-wise Revenue Breakdown)
 async function getSalesReport(req, res) {
     try {
+        const { period, startDate, endDate } = req.query;
+        let dateCondition = '';
+        const params = [];
+
+        if (startDate && endDate) {
+            dateCondition = ' AND DATE(t.txn_date) BETWEEN ? AND ?';
+            params.push(startDate, endDate);
+        } else if (startDate) {
+            dateCondition = ' AND DATE(t.txn_date) >= ?';
+            params.push(startDate);
+        } else if (endDate) {
+            dateCondition = ' AND DATE(t.txn_date) <= ?';
+            params.push(endDate);
+        } else if (period === 'TODAY') {
+            dateCondition = ' AND DATE(t.txn_date) = CURDATE()';
+        } else if (period === 'YESTERDAY') {
+            dateCondition = ' AND DATE(t.txn_date) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)';
+        } else if (period === 'THIS_WEEK') {
+            dateCondition = ' AND t.txn_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)';
+        } else if (period === 'THIS_MONTH') {
+            dateCondition = ' AND MONTH(t.txn_date) = MONTH(CURDATE()) AND YEAR(t.txn_date) = YEAR(CURDATE())';
+        } else if (period === 'LAST_MONTH') {
+            dateCondition = ' AND t.txn_date >= DATE_SUB(DATE_FORMAT(CURDATE(), \'%Y-%m-01\'), INTERVAL 1 MONTH) AND t.txn_date < DATE_FORMAT(CURDATE(), \'%Y-%m-01\')';
+        } else if (period === 'THIS_YEAR') {
+            dateCondition = ' AND YEAR(t.txn_date) = YEAR(CURDATE())';
+        }
+
         const [summary] = await db.query(`
             SELECT 
                 COUNT(DISTINCT invoice_ref) AS total_bills,
@@ -179,9 +209,9 @@ async function getSalesReport(req, res) {
                 COALESCE(SUM(total_amount), 0) AS gross_sales,
                 COALESCE(SUM(discount_amount), 0) AS total_discounts,
                 COALESCE(SUM(total_amount), 0) AS net_revenue
-            FROM transactions 
-            WHERE txn_type = 'SALE'
-        `);
+            FROM transactions t
+            WHERE t.txn_type = 'SALE' ${dateCondition}
+        `, params);
 
         const [rows] = await db.query(`
             SELECT 
@@ -193,10 +223,10 @@ async function getSalesReport(req, res) {
             FROM transactions t
             JOIN products p ON t.product_id = p.id
             LEFT JOIN categories c ON p.category_id = c.id
-            WHERE t.txn_type = 'SALE'
+            WHERE t.txn_type = 'SALE' ${dateCondition}
             GROUP BY c.id, c.name, c.domain_type
             ORDER BY revenue DESC
-        `);
+        `, params);
 
         return res.json({ summary: summary[0], items: rows });
     } catch (err) {
@@ -211,6 +241,7 @@ async function getSalesReport(req, res) {
         });
     }
 }
+
 
 
 // Report 2: Sales Velocity (Fast vs Slow Moving Items & Dead Stock - Scalable Category & Product Drill-down)
